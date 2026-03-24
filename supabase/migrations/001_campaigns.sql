@@ -6,7 +6,7 @@ create table if not exists public.campaigns (
   supplier text not null,
   skus text[] default array[]::text[],
   launch_month date not null,
-  locked boolean default false,
+  status text default 'Not contacted',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

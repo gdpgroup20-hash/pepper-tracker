@@ -6,10 +6,26 @@ import PasswordGate, { checkAuth } from '../../components/PasswordGate'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const MONTH_LABELS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const CURRENT_YEAR = 2026
-const CURRENT_MONTH = new Date().getMonth() // 0-indexed
+const MONTH_COLS = [
+  { label: "Sep", year: 2025, month: 9 },
+  { label: "Oct", year: 2025, month: 10 },
+  { label: "Nov", year: 2025, month: 11 },
+  { label: "Dec", year: 2025, month: 12 },
+  { label: "Jan", year: 2026, month: 1 },
+  { label: "Feb", year: 2026, month: 2 },
+  { label: "Mar", year: 2026, month: 3 },
+  { label: "Apr", year: 2026, month: 4 },
+  { label: "May", year: 2026, month: 5 },
+  { label: "Jun", year: 2026, month: 6 },
+  { label: "Jul", year: 2026, month: 7 },
+  { label: "Aug", year: 2026, month: 8 },
+  { label: "Sep", year: 2026, month: 9 },
+  { label: "Oct", year: 2026, month: 10 },
+  { label: "Nov", year: 2026, month: 11 },
+  { label: "Dec", year: 2026, month: 12 },
+]
+
+const STATUSES = ["Not contacted", "Contacted - pending decision", "Verbal yes", "Signed"]
 
 const SUPPLIERS = ["Pilgrim's", "Essity", "Aspire Bakeries", "Kettle Cuisine", "Kerry", "Branding Iron", "J.M. Smucker"]
 
@@ -47,8 +63,8 @@ interface Campaign {
   distributor: string
   supplier: string
   skus: string[]
-  launch_month: string // "2026-MM-01"
-  locked: boolean
+  launch_month: string // "YYYY-MM-01"
+  status: string
   created_at?: string
   updated_at?: string
 }
@@ -72,18 +88,75 @@ const labelStyle: React.CSSProperties = { fontSize: 12, color: '#a1a1aa', margin
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function monthIndex(launchMonth: string): number {
-  return new Date(launchMonth + 'T00:00:00').getMonth()
+function monthValue(col: { year: number; month: number }): string {
+  return `${col.year}-${String(col.month).padStart(2, '0')}-01`
+}
+
+function colKey(col: { year: number; month: number }): string {
+  return `${col.year}-${col.month}`
+}
+
+function launchMonthToColKey(launchMonth: string): string {
+  const d = new Date(launchMonth + 'T00:00:00')
+  return `${d.getFullYear()}-${d.getMonth() + 1}`
 }
 
 function isPast(launchMonth: string): boolean {
   const d = new Date(launchMonth + 'T00:00:00')
-  const firstOfCurrent = new Date(CURRENT_YEAR, CURRENT_MONTH, 1)
+  const now = new Date()
+  const firstOfCurrent = new Date(now.getFullYear(), now.getMonth(), 1)
   return d < firstOfCurrent
 }
 
-function monthValue(mi: number): string {
-  return `${CURRENT_YEAR}-${String(mi + 1).padStart(2, '0')}-01`
+function tileLabel(campaign: Campaign): string {
+  const d = new Date(campaign.launch_month + 'T00:00:00')
+  const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
+  return `${campaign.supplier} · ${mon}`
+}
+
+function launchMonthLabel(launchMonth: string): string {
+  const d = new Date(launchMonth + 'T00:00:00')
+  const labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  return `${labels[d.getMonth()]} ${d.getFullYear()}`
+}
+
+// ─── MonthPicker Component ──────────────────────────────────────────────────
+
+function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ border: "1px solid #3f3f46", borderRadius: 8, padding: 12, background: "#1c1c1f" }}>
+      <div style={{ fontSize: 10, color: "#71717a", marginBottom: 4 }}>2025</div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
+        {MONTH_COLS.filter(c => c.year === 2025).map(col => {
+          const v = monthValue(col)
+          const selected = value === v
+          return (
+            <button key={v} type="button" onClick={() => onChange(v)} style={{
+              padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12,
+              background: selected ? "#7c3aed" : "#27272a",
+              color: selected ? "#fff" : "#a1a1aa",
+              fontWeight: selected ? 600 : 400,
+            }}>{col.label}</button>
+          )
+        })}
+      </div>
+      <div style={{ fontSize: 10, color: "#71717a", marginBottom: 4 }}>2026</div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {MONTH_COLS.filter(c => c.year === 2026).map(col => {
+          const v = monthValue(col)
+          const selected = value === v
+          return (
+            <button key={v} type="button" onClick={() => onChange(v)} style={{
+              padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12,
+              background: selected ? "#7c3aed" : "#27272a",
+              color: selected ? "#fff" : "#a1a1aa",
+              fontWeight: selected ? 600 : 400,
+            }}>{col.label}</button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 // ─── Matrix Component ────────────────────────────────────────────────────────
@@ -93,6 +166,9 @@ function Matrix() {
   const [showCreate, setShowCreate] = useState(false)
   const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
+
+  const now = new Date()
+  const currentColKey = `${now.getFullYear()}-${now.getMonth() + 1}`
 
   // ─── Supabase CRUD ─────────────────────────────────────────────────────────
 
@@ -145,12 +221,12 @@ function Matrix() {
     setDragId(campaign.id)
   }
 
-  function handleDrop(e: React.DragEvent, distributor: string, mi: number) {
+  function handleDrop(e: React.DragEvent, distributor: string, col: { year: number; month: number }) {
     e.preventDefault()
     const campaignId = e.dataTransfer.getData('campaignId')
     if (!campaignId) return
-    if (isPast(monthValue(mi))) return
-    updateCampaign(campaignId, { distributor, launch_month: monthValue(mi) })
+    if (isPast(monthValue(col))) return
+    updateCampaign(campaignId, { distributor, launch_month: monthValue(col) })
     setDragId(null)
   }
 
@@ -166,8 +242,8 @@ function Matrix() {
 
   const campaignMap = new Map<string, Campaign[]>()
   for (const c of campaigns) {
-    const mi = monthIndex(c.launch_month)
-    const key = `${c.distributor}::${mi}`
+    const ck = launchMonthToColKey(c.launch_month)
+    const key = `${c.distributor}::${ck}`
     const arr = campaignMap.get(key) || []
     arr.push(c)
     campaignMap.set(key, arr)
@@ -224,17 +300,21 @@ function Matrix() {
               }}>
                 Distributor
               </th>
-              {MONTHS.map((m, i) => (
-                <th key={m} style={{
-                  width: 120, minWidth: 120, padding: 8, textAlign: 'center',
-                  fontSize: 12, fontWeight: 600,
-                  background: i === CURRENT_MONTH ? '#1e1e22' : '#18181b',
-                  color: i === CURRENT_MONTH ? '#a78bfa' : '#a1a1aa',
-                  borderBottom: '1px solid #27272a', borderRight: '1px solid #1a1a1c',
-                }}>
-                  {m} {CURRENT_YEAR}
-                </th>
-              ))}
+              {MONTH_COLS.map(col => {
+                const ck = colKey(col)
+                const isCurrent = ck === currentColKey
+                return (
+                  <th key={ck} style={{
+                    width: 120, minWidth: 120, padding: 8, textAlign: 'center',
+                    fontSize: 12, fontWeight: 600,
+                    background: isCurrent ? '#1e1e22' : '#18181b',
+                    color: isCurrent ? '#a78bfa' : '#a1a1aa',
+                    borderBottom: '1px solid #27272a', borderRight: '1px solid #1a1a1c',
+                  }}>
+                    {col.label} {col.year}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
@@ -249,31 +329,35 @@ function Matrix() {
                 }}>
                   {dist}
                 </td>
-                {MONTHS.map((_, mi) => {
-                  const cellCampaigns = campaignMap.get(`${dist}::${mi}`) || []
-                  const isCurrentMonth = mi === CURRENT_MONTH
-                  const cellPast = isPast(monthValue(mi))
+                {MONTH_COLS.map(col => {
+                  const ck = colKey(col)
+                  const cellCampaigns = campaignMap.get(`${dist}::${ck}`) || []
+                  const isCurrent = ck === currentColKey
+                  const cellPast = isPast(monthValue(col))
                   return (
                     <td
-                      key={mi}
+                      key={ck}
                       onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, dist, mi)}
+                      onDrop={(e) => handleDrop(e, dist, col)}
                       style={{
                         verticalAlign: 'top', padding: 4,
                         borderBottom: '1px solid #1a1a1c', borderRight: '1px solid #1a1a1c',
                         minHeight: 40, width: 120,
-                        background: isCurrentMonth ? '#0d0d12' : (ri % 2 === 0 ? '#0f0f10' : '#111113'),
+                        background: isCurrent ? '#0d0d12' : (ri % 2 === 0 ? '#0f0f10' : '#111113'),
                       }}
                     >
                       {cellCampaigns.map(camp => {
                         const colors = SUPPLIER_COLORS[camp.supplier] || { bg: '#27272a', border: '#52525b', text: '#a1a1aa' }
                         const past = isPast(camp.launch_month)
+                        let tileBorder = `1px solid ${colors.border}33`
+                        if (camp.status === 'Signed') tileBorder = `2px solid ${colors.border}`
+                        else if (camp.status === 'Verbal yes') tileBorder = `1px solid ${colors.border}`
                         return (
                           <div
                             key={camp.id}
                             style={{
                               background: colors.bg,
-                              border: camp.locked ? `2px solid ${colors.border}` : 'none',
+                              border: tileBorder,
                               borderRadius: 4, padding: '3px 6px', marginBottom: 2,
                               fontSize: 11, color: colors.text,
                               cursor: past ? 'default' : 'pointer',
@@ -286,7 +370,7 @@ function Matrix() {
                             onDragStart={(e) => handleDragStart(e, camp)}
                             onDragEnd={handleDragEnd}
                           >
-                            {camp.supplier}
+                            {tileLabel(camp)}
                           </div>
                         )
                       })}
@@ -324,18 +408,19 @@ function CreateModal({ onCreate, onClose }: {
   const [distributor, setDistributor] = useState(DISTRIBUTORS[0])
   const [supplier, setSupplier] = useState(SUPPLIERS[0])
   const [skusInput, setSkusInput] = useState('')
-  const [launchMonth, setLaunchMonth] = useState(() => monthValue(CURRENT_MONTH))
-  const [locked, setLocked] = useState(false)
+  const [launchMonth, setLaunchMonth] = useState(() => {
+    const now = new Date()
+    const col = MONTH_COLS.find(c => c.year === now.getFullYear() && c.month === now.getMonth() + 1)
+    return col ? monthValue(col) : monthValue(MONTH_COLS[0])
+  })
+  const [status, setStatus] = useState('Not contacted')
   const [saving, setSaving] = useState(false)
-
-  const futureMonths = MONTHS.map((m, i) => ({ label: `${MONTH_LABELS[i]} ${CURRENT_YEAR}`, value: monthValue(i), past: isPast(monthValue(i)) }))
-    .filter(m => !m.past)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
-    await onCreate({ distributor, supplier, skus, launch_month: launchMonth, locked })
+    await onCreate({ distributor, supplier, skus, launch_month: launchMonth, status })
     setSaving(false)
     onClose()
   }
@@ -362,14 +447,14 @@ function CreateModal({ onCreate, onClose }: {
             <input style={inputStyle} value={skusInput} onChange={e => setSkusInput(e.target.value)} placeholder="e.g. SKU-001, SKU-002" />
           </div>
           <div>
-            <label style={labelStyle}>Launch Month</label>
-            <select style={inputStyle} value={launchMonth} onChange={e => setLaunchMonth(e.target.value)}>
-              {futureMonths.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            <label style={labelStyle}>Launch Date</label>
+            <MonthPicker value={launchMonth} onChange={setLaunchMonth} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={locked} onChange={e => setLocked(e.target.checked)} id="locked-check" />
-            <label htmlFor="locked-check" style={{ fontSize: 13, color: '#a1a1aa', cursor: 'pointer' }}>Locked</label>
+          <div>
+            <label style={labelStyle}>Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button type="submit" disabled={saving} style={{
@@ -401,13 +486,13 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
   onClose: () => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editStatus, setEditStatus] = useState(campaign.status)
   const past = isPast(campaign.launch_month)
   const colors = SUPPLIER_COLORS[campaign.supplier] || { bg: '#27272a', border: '#52525b', text: '#a1a1aa' }
-  const mi = monthIndex(campaign.launch_month)
 
-  async function handleToggleLock() {
-    await onUpdate(campaign.id, { locked: !campaign.locked })
-    onClose()
+  async function handleStatusChange(newStatus: string) {
+    setEditStatus(newStatus)
+    await onUpdate(campaign.id, { status: newStatus })
   }
 
   async function handleDelete() {
@@ -443,7 +528,7 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
           </div>
           <div>
             <div style={labelStyle}>Launch Month</div>
-            <div style={{ fontSize: 14, color: '#fafafa' }}>{MONTH_LABELS[mi]} {CURRENT_YEAR}</div>
+            <div style={{ fontSize: 14, color: '#fafafa' }}>{launchMonthLabel(campaign.launch_month)}</div>
           </div>
           <div>
             <div style={labelStyle}>SKUs</div>
@@ -453,23 +538,18 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
           </div>
           <div>
             <div style={labelStyle}>Status</div>
-            <div style={{ fontSize: 14, color: '#fafafa' }}>
-              {campaign.locked ? 'Locked' : 'Unlocked'}{past ? ' (Past)' : ''}
-            </div>
+            {!past ? (
+              <select value={editStatus} onChange={e => handleStatusChange(e.target.value)} style={inputStyle}>
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            ) : (
+              <div style={{ fontSize: 14, color: '#fafafa' }}>{campaign.status} (Past)</div>
+            )}
           </div>
         </div>
 
         {!past && (
           <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-            <button onClick={handleToggleLock} style={{
-              flex: 1, padding: '8px 14px',
-              background: campaign.locked ? '#27272a' : '#7c3aed',
-              color: campaign.locked ? '#a1a1aa' : '#fff',
-              border: campaign.locked ? '1px solid #3f3f46' : 'none',
-              borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer',
-            }}>
-              {campaign.locked ? 'Unlock' : 'Lock'}
-            </button>
             {!confirmDelete ? (
               <button onClick={() => setConfirmDelete(true)} style={{
                 padding: '8px 14px', background: '#450a0a', color: '#fca5a5',
