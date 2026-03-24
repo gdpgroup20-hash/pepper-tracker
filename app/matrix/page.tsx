@@ -176,7 +176,7 @@ function Matrix() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0f0f10', color: '#fafafa' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 40px)', background: '#0f0f10', color: '#fafafa' }}>
 
       {/* Top bar */}
       <div style={{

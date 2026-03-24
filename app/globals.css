@@ -41,7 +41,7 @@ body {
 }
 
 .app {
-  min-height: 100vh;
+  min-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
 }
