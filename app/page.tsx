@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { supabase } from './supabase'
+'use client'
 
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import PasswordGate, { checkAuth } from '../components/PasswordGate'
 
 import {
   DndContext,
@@ -23,7 +25,7 @@ const CATEGORIES = ['GTM', 'Ops', 'Product', 'Engineering', 'Other']
 
 const STATUSES = ['Not Started', 'In Progress', 'Overdue', 'Done']
 
-const STATUS_COLORS = {
+const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   'Not Started': { bg: '#27272a', text: '#a1a1aa', border: '#52525b' },
   'In Progress': { bg: '#1e293b', text: '#7dd3fc', border: '#0ea5e9' },
   'Overdue': { bg: '#3b1515', text: '#fca5a5', border: '#ef4444' },
@@ -34,12 +36,12 @@ const OWNERS = ['AvB', 'JM', 'EG', 'MK', 'RK', 'KR', 'SW', 'LH']
 
 const TEAMS = ['Growth Agent', 'Ads & Product']
 
-const TEAM_COLORS = {
+const TEAM_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   'Growth Agent': { bg: '#1e293b', text: '#7dd3fc', border: '#0ea5e9' },
   'Ads & Product': { bg: '#3b2014', text: '#fdba74', border: '#f97316' },
 }
 
-const CATEGORY_COLORS = {
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   GTM: { bg: '#2d1f5e', text: '#a78bfa', border: '#7c3aed' },
   Ops: { bg: '#1e3a2f', text: '#6ee7b7', border: '#10b981' },
   Product: { bg: '#3b2014', text: '#fdba74', border: '#f97316' },
@@ -52,13 +54,26 @@ const CUTLINE_STORAGE_KEY = 'pepper-tracker-cutline'
 const CUTLINE_ID = '__cutline__'
 const DONE_CUTLINE_ID = '__done_cutline__'
 
-function loadProjects() {
+interface Project {
+  id: string
+  title: string
+  owner: string
+  team: string
+  description: string
+  dueDate: string
+  category: string
+  status: string
+  prd: string
+  completedAt: number | null
+}
+
+function loadProjects(): Project[] {
   try {
     const data = localStorage.getItem(STORAGE_KEY)
     if (!data) return []
     const projects = JSON.parse(data)
     let migrated = false
-    const result = projects.map((p) => {
+    const result = projects.map((p: any) => {
       let updated = p
       if (p.owner === 'RZ') {
         migrated = true
@@ -75,7 +90,7 @@ function loadProjects() {
   }
 }
 
-function saveProjects(projects) {
+function saveProjects(projects: Project[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects))
   if (supabase) {
     const rows = projects.map((p) => ({
@@ -101,11 +116,11 @@ function loadCutLineIndex() {
   }
 }
 
-function saveCutLineIndex(index) {
+function saveCutLineIndex(index: number) {
   localStorage.setItem(CUTLINE_STORAGE_KEY, JSON.stringify(index))
 }
 
-function createProject() {
+function createProject(): Project {
   return {
     id: crypto.randomUUID(),
     title: '',
@@ -125,19 +140,19 @@ function getTodayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function getDaysOverdue(dueDate) {
+function getDaysOverdue(dueDate: string) {
   if (!dueDate) return 0
   const due = new Date(dueDate + 'T00:00:00')
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const diff = Math.floor((now - due) / (1000 * 60 * 60 * 24))
+  const diff = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
   return Math.max(0, diff)
 }
 
-function EditableCell({ value, onChange, type = 'text', placeholder }) {
+function EditableCell({ value, onChange, type = 'text', placeholder }: { value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
-  const inputRef = useRef(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setDraft(value)
@@ -186,14 +201,14 @@ function EditableCell({ value, onChange, type = 'text', placeholder }) {
   )
 }
 
-function CategoryBadge({ category, onChange }) {
+function CategoryBadge({ category, onChange }: { category: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement>(null)
   const colors = CATEGORY_COLORS[category] || CATEGORY_COLORS.Other
 
   useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -240,14 +255,14 @@ function CategoryBadge({ category, onChange }) {
   )
 }
 
-function TeamDropdown({ value, onChange }) {
+function TeamDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement>(null)
   const colors = value ? TEAM_COLORS[value] : null
 
   useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -255,7 +270,7 @@ function TeamDropdown({ value, onChange }) {
 
   return (
     <div className="category-wrapper" ref={ref}>
-      {value ? (
+      {value && colors ? (
         <span
           className="category-badge"
           style={{
@@ -294,17 +309,17 @@ function TeamDropdown({ value, onChange }) {
   )
 }
 
-function DatePicker({ value, onChange, locked }) {
+function DatePicker({ value, onChange, locked }: { value: string; onChange: (v: string) => void; locked?: boolean }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement>(null)
   const today = new Date()
   const parsed = value ? new Date(value + 'T00:00:00') : null
   const [viewYear, setViewYear] = useState(parsed ? parsed.getFullYear() : today.getFullYear())
   const [viewMonth, setViewMonth] = useState(parsed ? parsed.getMonth() : today.getMonth())
 
   useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -333,14 +348,14 @@ function DatePicker({ value, onChange, locked }) {
     if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1) }
     else setViewMonth(viewMonth + 1)
   }
-  function selectDay(day) {
+  function selectDay(day: number) {
     const m = String(viewMonth + 1).padStart(2, '0')
     const d = String(day).padStart(2, '0')
     onChange(`${viewYear}-${m}-${d}`)
     setOpen(false)
   }
 
-  const formatDisplay = (val) => {
+  const formatDisplay = (val: string) => {
     if (!val) return null
     const d = new Date(val + 'T00:00:00')
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -349,7 +364,7 @@ function DatePicker({ value, onChange, locked }) {
   if (locked) {
     return (
       <div className="datepicker-wrapper">
-        <div className="locked-date" title="Date locked — project is overdue">
+        <div className="locked-date" title="Date locked - project is overdue">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="lock-icon">
             <path d="M12 7V5a4 4 0 10-8 0v2a2 2 0 00-2 2v5a2 2 0 002 2h8a2 2 0 002-2V9a2 2 0 00-2-2zm-5-2a3 3 0 116 0v2H7V5z" />
           </svg>
@@ -401,17 +416,17 @@ function DatePicker({ value, onChange, locked }) {
   )
 }
 
-function StatusBadge({ status, onChange, prd, isOverdue }) {
+function StatusBadge({ status, onChange, prd, isOverdue }: { status: string; onChange: (v: string) => void; prd: string; isOverdue: boolean }) {
   const [open, setOpen] = useState(false)
   const [warning, setWarning] = useState('')
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement>(null)
   const colors = STATUS_COLORS[status] || STATUS_COLORS['Not Started']
 
   const allowedStatuses = isOverdue ? ['Done'] : STATUSES
 
   useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false)
         setWarning('')
       }
@@ -420,7 +435,7 @@ function StatusBadge({ status, onChange, prd, isOverdue }) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  function handleSelect(s) {
+  function handleSelect(s: string) {
     if ((s === 'In Progress' || s === 'Done') && !prd) {
       setWarning('PRD required to mark In Progress or Done')
       return
@@ -463,13 +478,13 @@ function StatusBadge({ status, onChange, prd, isOverdue }) {
   )
 }
 
-function OwnerDropdown({ value, onChange }) {
+function OwnerDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    function handleClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -497,10 +512,10 @@ function OwnerDropdown({ value, onChange }) {
   )
 }
 
-function PrdCell({ value, onChange }) {
+function PrdCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
-  const inputRef = useRef(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setDraft(value) }, [value])
   useEffect(() => {
@@ -551,13 +566,13 @@ function PrdCell({ value, onChange }) {
   )
 }
 
-function OverdueBadge({ dueDate }) {
+function OverdueBadge({ dueDate }: { dueDate: string }) {
   const days = getDaysOverdue(dueDate)
   if (days <= 0) return null
   return <span className="overdue-badge">{days}d overdue</span>
 }
 
-function SortableRow({ project, onUpdate, onDelete, belowCut }) {
+function SortableRow({ project, onUpdate, onDelete, belowCut }: { project: Project; onUpdate: (id: string, field: string, value: any) => void; onDelete: (id: string) => void; belowCut: boolean }) {
   const {
     attributes,
     listeners,
@@ -571,10 +586,10 @@ function SortableRow({ project, onUpdate, onDelete, belowCut }) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : 'auto',
+    zIndex: isDragging ? 10 : ('auto' as const),
   }
 
-  const update = (field) => (val) => onUpdate(project.id, field, val)
+  const update = (field: string) => (val: any) => onUpdate(project.id, field, val)
   const isOverdue = project.status === 'Overdue'
 
   return (
@@ -653,8 +668,8 @@ function SortableRow({ project, onUpdate, onDelete, belowCut }) {
   )
 }
 
-function DoneRow({ project, onUpdate, onDelete }) {
-  const update = (field) => (val) => onUpdate(project.id, field, val)
+function DoneRow({ project, onUpdate, onDelete }: { project: Project; onUpdate: (id: string, field: string, value: any) => void; onDelete: (id: string) => void }) {
+  const update = (field: string) => (val: any) => onUpdate(project.id, field, val)
   const isOverdue = project.status === 'Overdue'
 
   return (
@@ -744,7 +759,7 @@ function SortableCutLine() {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : 'auto',
+    zIndex: isDragging ? 10 : ('auto' as const),
   }
 
   return (
@@ -774,70 +789,7 @@ function DoneCutLine() {
   )
 }
 
-const PASSWORD = 'growth'
-const AUTH_KEY = 'pepper-auth'
-
-function PasswordGate({ onUnlock }) {
-  const [input, setInput] = useState('')
-  const [error, setError] = useState(false)
-
-  function handleSubmit(e) {
-    e.preventDefault()
-    if (input === PASSWORD) {
-      localStorage.setItem(AUTH_KEY, '1')
-      onUnlock()
-    } else {
-      setError(true)
-      setInput('')
-    }
-  }
-
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: '#0a0a0a',
-    }}>
-      <form onSubmit={handleSubmit} style={{
-        display: 'flex', flexDirection: 'column', gap: '12px',
-        background: '#18181b', border: '1px solid #27272a', borderRadius: '12px',
-        padding: '32px', minWidth: '280px', alignItems: 'center',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect width="24" height="24" rx="6" fill="#7c3aed" />
-            <path d="M7 8h10M7 12h7M7 16h10" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <span style={{ color: '#fff', fontWeight: 600, fontSize: '16px' }}>Pepper Tracker</span>
-        </div>
-        <input
-          type="password"
-          value={input}
-          onChange={(e) => { setInput(e.target.value); setError(false) }}
-          placeholder="Password"
-          autoFocus
-          style={{
-            background: '#27272a', border: `1px solid ${error ? '#ef4444' : '#3f3f46'}`,
-            borderRadius: '6px', color: '#fff', padding: '8px 12px',
-            fontSize: '14px', width: '100%', outline: 'none',
-          }}
-        />
-        {error && <span style={{ color: '#ef4444', fontSize: '13px' }}>Incorrect password</span>}
-        <button type="submit" style={{
-          background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px',
-          padding: '8px 20px', fontSize: '14px', cursor: 'pointer', width: '100%',
-        }}>
-          Enter
-        </button>
-      </form>
-    </div>
-  )
-}
-
-export default function App() {
-  const [unlocked, setUnlocked] = useState(() => localStorage.getItem(AUTH_KEY) === '1')
-
-  if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />
-
+function Tracker() {
   const [projects, setProjects] = useState(loadProjects)
   const [cutLineIndex, setCutLineIndex] = useState(() => {
     const saved = loadCutLineIndex()
@@ -849,11 +801,11 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return
 
-    let channel
+    let channel: any
 
     async function loadFromSupabase() {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabase!
           .from('projects')
           .select('*')
         if (error) {
@@ -861,7 +813,7 @@ export default function App() {
           return
         }
         if (data && data.length > 0) {
-          const loaded = data.map((row) => row.data)
+          const loaded = data.map((row: any) => row.data)
           setProjects(loaded)
           localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded))
         }
@@ -877,7 +829,7 @@ export default function App() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'projects' },
-        (payload) => {
+        (payload: any) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const incoming = payload.new.data
             setProjects((prev) => {
@@ -898,7 +850,7 @@ export default function App() {
       .subscribe()
 
     return () => {
-      if (channel) supabase.removeChannel(channel)
+      if (channel) supabase!.removeChannel(channel)
     }
   }, [])
 
@@ -954,7 +906,7 @@ export default function App() {
     ...activeProjects.slice(clampedCutIndex).map((p) => p.id),
   ]
 
-  function handleDragEnd(event) {
+  function handleDragEnd(event: any) {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -988,7 +940,7 @@ export default function App() {
     setCutLineIndex((prev) => prev + 1)
   }
 
-  function updateProject(id, field, value) {
+  function updateProject(id: string, field: string, value: any) {
     setProjects((prev) => {
       return prev.map((p) => {
         if (p.id !== id) return p
@@ -1014,7 +966,7 @@ export default function App() {
     }
   }
 
-  function deleteProject(id) {
+  function deleteProject(id: string) {
     const activeIdx = activeProjects.findIndex((p) => p.id === id)
     setProjects((prev) => prev.filter((p) => p.id !== id))
     if (activeIdx !== -1 && activeIdx < clampedCutIndex) {
@@ -1032,12 +984,12 @@ export default function App() {
   const colWidths = useRef(INITIAL_WIDTHS.slice())
   const [, setResizeTick] = useState(0)
 
-  const onResizeMouseDown = useCallback((colIndex, e) => {
+  const onResizeMouseDown = useCallback((colIndex: number, e: React.MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX
     const startWidth = colWidths.current[colIndex]
 
-    function onMouseMove(ev) {
+    function onMouseMove(ev: MouseEvent) {
       const delta = ev.clientX - startX
       colWidths.current[colIndex] = Math.max(30, startWidth + delta)
       setResizeTick((t) => t + 1)
@@ -1090,7 +1042,7 @@ export default function App() {
               </svg>
             </div>
             <p className="empty-title">No projects yet</p>
-            <p className="empty-sub">Click "Add Project" to get started</p>
+            <p className="empty-sub">Click &quot;Add Project&quot; to get started</p>
           </div>
         ) : (
           <table className="project-table">
@@ -1128,7 +1080,7 @@ export default function App() {
                     return (
                       <SortableRow
                         key={id}
-                        project={activeProjects.find((p) => p.id === id)}
+                        project={activeProjects.find((p) => p.id === id)!}
                         onUpdate={updateProject}
                         onDelete={deleteProject}
                         belowCut={i > cutPos}
@@ -1158,4 +1110,12 @@ export default function App() {
       </footer>
     </div>
   )
+}
+
+export default function Page() {
+  const [unlocked, setUnlocked] = useState(() => checkAuth())
+
+  if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />
+
+  return <Tracker />
 }
