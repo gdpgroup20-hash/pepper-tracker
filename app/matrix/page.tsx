@@ -63,7 +63,7 @@ interface Campaign {
   distributor: string
   supplier: string
   skus: string[]
-  launch_month: string // "YYYY-MM-01"
+  launch_month: string // "YYYY-MM-DD" (full date, stored in launch_month column)
   status: string
   created_at?: string
   updated_at?: string
@@ -77,7 +77,8 @@ const modalOverlay: React.CSSProperties = {
 }
 const modalBox: React.CSSProperties = {
   background: '#18181b', border: '1px solid #27272a', borderRadius: 12,
-  padding: 24, minWidth: 360, maxWidth: 480, width: '100%',
+  padding: 24, minWidth: 380, maxWidth: 500, width: '100%',
+  maxHeight: '90vh', overflowY: 'auto',
 }
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#27272a', border: '1px solid #3f3f46',
@@ -96,13 +97,14 @@ function colKey(col: { year: number; month: number }): string {
   return `${col.year}-${col.month}`
 }
 
-function launchMonthToColKey(launchMonth: string): string {
-  const d = new Date(launchMonth + 'T00:00:00')
+function launchDateToColKey(launchDate: string): string {
+  // handles both "YYYY-MM-01" and "YYYY-MM-DD"
+  const d = new Date(launchDate + 'T00:00:00')
   return `${d.getFullYear()}-${d.getMonth() + 1}`
 }
 
-function isPast(launchMonth: string): boolean {
-  const d = new Date(launchMonth + 'T00:00:00')
+function isPast(launchDate: string): boolean {
+  const d = new Date(launchDate + 'T00:00:00')
   const now = new Date()
   const firstOfCurrent = new Date(now.getFullYear(), now.getMonth(), 1)
   return d < firstOfCurrent
@@ -111,49 +113,100 @@ function isPast(launchMonth: string): boolean {
 function tileLabel(campaign: Campaign): string {
   const d = new Date(campaign.launch_month + 'T00:00:00')
   const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
-  return `${campaign.supplier} · ${mon}`
+  const day = d.getDate()
+  return `${campaign.supplier} · ${mon} ${day}`
 }
 
-function launchMonthLabel(launchMonth: string): string {
-  const d = new Date(launchMonth + 'T00:00:00')
-  const labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-  return `${labels[d.getMonth()]} ${d.getFullYear()}`
+function launchDateLabel(launchDate: string): string {
+  const d = new Date(launchDate + 'T00:00:00')
+  const months = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December']
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
 }
 
-// ─── MonthPicker Component ──────────────────────────────────────────────────
+// Given a "YYYY-MM-DD" string, returns { monthStr: "YYYY-MM-01", day: 15 }
+function parseLaunchDate(v: string): { monthStr: string; day: number } {
+  const parts = v.split('-')
+  const year = parseInt(parts[0])
+  const month = parseInt(parts[1])
+  const day = parseInt(parts[2])
+  return {
+    monthStr: `${year}-${String(month).padStart(2, '0')}-01`,
+    day: isNaN(day) ? 1 : day,
+  }
+}
 
-function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function buildLaunchDate(monthStr: string, day: number): string {
+  const parts = monthStr.split('-')
+  const year = parseInt(parts[0])
+  const month = parseInt(parts[1])
+  // clamp day to valid range
+  const maxDay = new Date(year, month, 0).getDate()
+  const clamped = Math.max(1, Math.min(day, maxDay))
+  return `${year}-${String(month).padStart(2, '0')}-${String(clamped).padStart(2, '0')}`
+}
+
+// ─── DatePicker Component ──────────────────────────────────────────────────
+
+function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { monthStr, day } = parseLaunchDate(value)
+
+  function handleMonthChange(newMonthStr: string) {
+    onChange(buildLaunchDate(newMonthStr, day))
+  }
+
+  function handleDayChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const d = parseInt(e.target.value)
+    if (!isNaN(d)) onChange(buildLaunchDate(monthStr, d))
+  }
+
   return (
-    <div style={{ border: "1px solid #3f3f46", borderRadius: 8, padding: 12, background: "#1c1c1f" }}>
-      <div style={{ fontSize: 10, color: "#71717a", marginBottom: 4 }}>2025</div>
-      <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
-        {MONTH_COLS.filter(c => c.year === 2025).map(col => {
-          const v = monthValue(col)
-          const selected = value === v
-          return (
-            <button key={v} type="button" onClick={() => onChange(v)} style={{
-              padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12,
-              background: selected ? "#7c3aed" : "#27272a",
-              color: selected ? "#fff" : "#a1a1aa",
-              fontWeight: selected ? 600 : 400,
-            }}>{col.label}</button>
-          )
-        })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Month grid */}
+      <div style={{ border: '1px solid #3f3f46', borderRadius: 8, padding: 12, background: '#1c1c1f' }}>
+        <div style={{ fontSize: 10, color: '#71717a', marginBottom: 4 }}>2025</div>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+          {MONTH_COLS.filter(c => c.year === 2025).map(col => {
+            const v = monthValue(col)
+            const selected = monthStr === v
+            return (
+              <button key={v} type="button" onClick={() => handleMonthChange(v)} style={{
+                padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
+                background: selected ? '#7c3aed' : '#27272a',
+                color: selected ? '#fff' : '#a1a1aa',
+                fontWeight: selected ? 600 : 400,
+              }}>{col.label}</button>
+            )
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: '#71717a', marginBottom: 4 }}>2026</div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {MONTH_COLS.filter(c => c.year === 2026).map(col => {
+            const v = monthValue(col)
+            const selected = monthStr === v
+            return (
+              <button key={v} type="button" onClick={() => handleMonthChange(v)} style={{
+                padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
+                background: selected ? '#7c3aed' : '#27272a',
+                color: selected ? '#fff' : '#a1a1aa',
+                fontWeight: selected ? 600 : 400,
+              }}>{col.label}</button>
+            )
+          })}
+        </div>
       </div>
-      <div style={{ fontSize: 10, color: "#71717a", marginBottom: 4 }}>2026</div>
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        {MONTH_COLS.filter(c => c.year === 2026).map(col => {
-          const v = monthValue(col)
-          const selected = value === v
-          return (
-            <button key={v} type="button" onClick={() => onChange(v)} style={{
-              padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12,
-              background: selected ? "#7c3aed" : "#27272a",
-              color: selected ? "#fff" : "#a1a1aa",
-              fontWeight: selected ? 600 : 400,
-            }}>{col.label}</button>
-          )
-        })}
+      {/* Day selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <label style={{ ...labelStyle, margin: 0, whiteSpace: 'nowrap' }}>Launch day</label>
+        <input
+          type="number"
+          min={1}
+          max={31}
+          value={day}
+          onChange={handleDayChange}
+          style={{ ...inputStyle, width: 80 }}
+        />
+        <span style={{ fontSize: 12, color: '#71717a' }}>of the month</span>
       </div>
     </div>
   )
@@ -217,16 +270,21 @@ function Matrix() {
   // ─── Drag & Drop ──────────────────────────────────────────────────────────
 
   function handleDragStart(e: React.DragEvent, campaign: Campaign) {
+    // Preserve the day when dragging to a new month
+    const { day } = parseLaunchDate(campaign.launch_month)
     e.dataTransfer.setData('campaignId', campaign.id)
+    e.dataTransfer.setData('campaignDay', String(day))
     setDragId(campaign.id)
   }
 
   function handleDrop(e: React.DragEvent, distributor: string, col: { year: number; month: number }) {
     e.preventDefault()
     const campaignId = e.dataTransfer.getData('campaignId')
+    const dayStr = e.dataTransfer.getData('campaignDay')
     if (!campaignId) return
-    if (isPast(monthValue(col))) return
-    updateCampaign(campaignId, { distributor, launch_month: monthValue(col) })
+    const day = parseInt(dayStr) || 1
+    const newDate = buildLaunchDate(monthValue(col), day)
+    updateCampaign(campaignId, { distributor, launch_month: newDate })
     setDragId(null)
   }
 
@@ -242,7 +300,7 @@ function Matrix() {
 
   const campaignMap = new Map<string, Campaign[]>()
   for (const c of campaigns) {
-    const ck = launchMonthToColKey(c.launch_month)
+    const ck = launchDateToColKey(c.launch_month)
     const key = `${c.distributor}::${ck}`
     const arr = campaignMap.get(key) || []
     arr.push(c)
@@ -333,7 +391,6 @@ function Matrix() {
                   const ck = colKey(col)
                   const cellCampaigns = campaignMap.get(`${dist}::${ck}`) || []
                   const isCurrent = ck === currentColKey
-                  const cellPast = isPast(monthValue(col))
                   return (
                     <td
                       key={ck}
@@ -360,13 +417,13 @@ function Matrix() {
                               border: tileBorder,
                               borderRadius: 4, padding: '3px 6px', marginBottom: 2,
                               fontSize: 11, color: colors.text,
-                              cursor: past ? 'default' : 'pointer',
-                              opacity: past ? 0.4 : 1,
+                              cursor: 'pointer',
+                              opacity: past ? 0.5 : 1,
                               userSelect: 'none',
                               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                             }}
-                            onClick={() => !past && setDetailCampaign(camp)}
-                            draggable={!past}
+                            onClick={() => setDetailCampaign(camp)}
+                            draggable
                             onDragStart={(e) => handleDragStart(e, camp)}
                             onDragEnd={handleDragEnd}
                           >
@@ -390,7 +447,10 @@ function Matrix() {
       {detailCampaign && (
         <DetailModal
           campaign={detailCampaign}
-          onUpdate={updateCampaign}
+          onUpdate={async (id, patch) => {
+            await updateCampaign(id, patch)
+            setDetailCampaign(prev => prev ? { ...prev, ...patch } : null)
+          }}
           onDelete={deleteCampaign}
           onClose={() => setDetailCampaign(null)}
         />
@@ -408,10 +468,9 @@ function CreateModal({ onCreate, onClose }: {
   const [distributor, setDistributor] = useState(DISTRIBUTORS[0])
   const [supplier, setSupplier] = useState(SUPPLIERS[0])
   const [skusInput, setSkusInput] = useState('')
-  const [launchMonth, setLaunchMonth] = useState(() => {
+  const [launchDate, setLaunchDate] = useState(() => {
     const now = new Date()
-    const col = MONTH_COLS.find(c => c.year === now.getFullYear() && c.month === now.getMonth() + 1)
-    return col ? monthValue(col) : monthValue(MONTH_COLS[0])
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   })
   const [status, setStatus] = useState('Not contacted')
   const [saving, setSaving] = useState(false)
@@ -420,7 +479,7 @@ function CreateModal({ onCreate, onClose }: {
     e.preventDefault()
     setSaving(true)
     const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
-    await onCreate({ distributor, supplier, skus, launch_month: launchMonth, status })
+    await onCreate({ distributor, supplier, skus, launch_month: launchDate, status })
     setSaving(false)
     onClose()
   }
@@ -448,7 +507,7 @@ function CreateModal({ onCreate, onClose }: {
           </div>
           <div>
             <label style={labelStyle}>Launch Date</label>
-            <MonthPicker value={launchMonth} onChange={setLaunchMonth} />
+            <DatePicker value={launchDate} onChange={setLaunchDate} />
           </div>
           <div>
             <label style={labelStyle}>Status</label>
@@ -486,13 +545,17 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
   onClose: () => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [editStatus, setEditStatus] = useState(campaign.status)
-  const past = isPast(campaign.launch_month)
+  const [status, setStatus] = useState(campaign.status)
+  const [launchDate, setLaunchDate] = useState(campaign.launch_month)
+  const [skusInput, setSkusInput] = useState((campaign.skus || []).join(', '))
+  const [saving, setSaving] = useState(false)
   const colors = SUPPLIER_COLORS[campaign.supplier] || { bg: '#27272a', border: '#52525b', text: '#a1a1aa' }
 
-  async function handleStatusChange(newStatus: string) {
-    setEditStatus(newStatus)
-    await onUpdate(campaign.id, { status: newStatus })
+  async function handleSave() {
+    setSaving(true)
+    const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
+    await onUpdate(campaign.id, { status, launch_month: launchDate, skus })
+    setSaving(false)
   }
 
   async function handleDelete() {
@@ -500,11 +563,16 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
     onClose()
   }
 
+  const hasChanges =
+    status !== campaign.status ||
+    launchDate !== campaign.launch_month ||
+    skusInput !== (campaign.skus || []).join(', ')
+
   return (
     <div style={modalOverlay} onClick={onClose}>
       <div style={modalBox} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Campaign Details</h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Campaign</h3>
           <button onClick={onClose} style={{
             background: 'none', border: 'none', color: '#71717a', fontSize: 18, cursor: 'pointer',
           }}>
@@ -512,7 +580,8 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Supplier badge (read-only) */}
           <div>
             <div style={labelStyle}>Supplier</div>
             <div style={{
@@ -522,51 +591,71 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
               {campaign.supplier}
             </div>
           </div>
+
+          {/* Distributor (read-only) */}
           <div>
             <div style={labelStyle}>Distributor</div>
             <div style={{ fontSize: 14, color: '#fafafa' }}>{campaign.distributor}</div>
           </div>
+
+          {/* Launch Date — editable */}
           <div>
-            <div style={labelStyle}>Launch Month</div>
-            <div style={{ fontSize: 14, color: '#fafafa' }}>{launchMonthLabel(campaign.launch_month)}</div>
+            <label style={labelStyle}>Launch Date</label>
+            <DatePicker value={launchDate} onChange={setLaunchDate} />
           </div>
+
+          {/* SKUs — editable */}
           <div>
-            <div style={labelStyle}>SKUs</div>
-            <div style={{ fontSize: 14, color: '#fafafa' }}>
-              {campaign.skus && campaign.skus.length > 0 ? campaign.skus.join(', ') : '—'}
-            </div>
+            <label style={labelStyle}>SKUs (comma-separated)</label>
+            <input
+              style={inputStyle}
+              value={skusInput}
+              onChange={e => setSkusInput(e.target.value)}
+              placeholder="e.g. SKU-001, SKU-002"
+            />
           </div>
+
+          {/* Status — editable */}
           <div>
-            <div style={labelStyle}>Status</div>
-            {!past ? (
-              <select value={editStatus} onChange={e => handleStatusChange(e.target.value)} style={inputStyle}>
-                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            ) : (
-              <div style={{ fontSize: 14, color: '#fafafa' }}>{campaign.status} (Past)</div>
-            )}
+            <label style={labelStyle}>Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
         </div>
 
-        {!past && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-            {!confirmDelete ? (
-              <button onClick={() => setConfirmDelete(true)} style={{
-                padding: '8px 14px', background: '#450a0a', color: '#fca5a5',
-                border: '1px solid #ef4444', borderRadius: 6, fontSize: 13, cursor: 'pointer',
-              }}>
-                Delete
-              </button>
-            ) : (
-              <button onClick={handleDelete} style={{
-                padding: '8px 14px', background: '#ef4444', color: '#fff',
-                border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}>
-                Confirm Delete
-              </button>
-            )}
-          </div>
-        )}
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || saving}
+            style={{
+              flex: 1, padding: '8px 14px',
+              background: hasChanges ? '#7c3aed' : '#27272a',
+              color: hasChanges ? '#fff' : '#71717a',
+              border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: hasChanges ? 'pointer' : 'default',
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+
+          {!confirmDelete ? (
+            <button onClick={() => setConfirmDelete(true)} style={{
+              padding: '8px 14px', background: '#450a0a', color: '#fca5a5',
+              border: '1px solid #ef4444', borderRadius: 6, fontSize: 13, cursor: 'pointer',
+            }}>
+              Delete
+            </button>
+          ) : (
+            <button onClick={handleDelete} style={{
+              padding: '8px 14px', background: '#ef4444', color: '#fff',
+              border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>
+              Confirm Delete
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
