@@ -81,8 +81,8 @@ const modalOverlay: React.CSSProperties = {
 }
 const modalBox: React.CSSProperties = {
   background: '#18181b', border: '1px solid #27272a', borderRadius: 12,
-  padding: 24, minWidth: 380, maxWidth: 500, width: '100%',
-  maxHeight: '90vh', overflowY: 'auto',
+  minWidth: 380, maxWidth: 500, width: '100%',
+  maxHeight: '90vh', display: 'flex', flexDirection: 'column',
 }
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#27272a', border: '1px solid #3f3f46',
@@ -601,9 +601,9 @@ function SkuPicker({
   const [query, setQuery] = useState("")
 
   const supplier = suppliers.find(s => s.name === supplierName)
-  const allItems: SkuItem[] = (supplier?.skus ?? []).map((s: any) =>
-    typeof s === "string" ? (() => { try { return JSON.parse(s) } catch { return { gtin: s, name: s } } })() : s
-  )
+  const allItems: SkuItem[] = (supplier?.skus ?? [])
+    .map((s: any) => typeof s === "string" ? (() => { try { return JSON.parse(s) } catch { return { gtin: s, name: s } } })() : s)
+    .sort((a: SkuItem, b: SkuItem) => a.name.localeCompare(b.name))
 
   const filtered = query.trim()
     ? allItems.filter(item =>
@@ -1146,61 +1146,65 @@ function CreateModal({ onCreate, suppliers, distributors, onClose, defaultDistri
   return (
     <div style={modalOverlay} onClick={onClose}>
       <div style={modalBox} onClick={e => e.stopPropagation()}>
-        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>New Campaign</h3>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Distributor</label>
-            <select style={inputStyle} value={distributor} onChange={e => setDistributor(e.target.value)}>
-              {distributors.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Supplier</label>
-            <select style={inputStyle} value={supplier} onChange={e => setSupplier(e.target.value)}>
-              <option value="">Select supplier...</option>
-              {suppliers.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Items</label>
-            <SkuPicker supplierName={supplier} suppliers={suppliers} selectedGtins={selectedGtins} onChange={setSelectedGtins} />
-          </div>
-          <div>
-            <label style={labelStyle}>Launch Date</label>
-            <DatePicker value={launchDate} onChange={setLaunchDate} />
-          </div>
-          <div>
-            <label style={labelStyle}>Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}>
-              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Notes</label>
-            <textarea
-              value={formNotes}
-              onChange={e => setFormNotes(e.target.value)}
-              placeholder="Any additional context..."
-              rows={3}
-              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <button type="submit" disabled={saving} style={{
-              flex: 1, padding: '8px 14px', background: '#7c3aed', color: '#fff',
-              border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              opacity: saving ? 0.6 : 1,
-            }}>
-              {saving ? 'Saving...' : 'Create Campaign'}
-            </button>
-            <button type="button" onClick={onClose} style={{
-              padding: '8px 14px', background: '#27272a', color: '#a1a1aa',
-              border: '1px solid #3f3f46', borderRadius: 6, fontSize: 13, cursor: 'pointer',
-            }}>
-              Cancel
-            </button>
-          </div>
-        </form>
+        {/* Scrollable content */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: 24, paddingBottom: 0 }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>New Campaign</h3>
+          <form id="create-campaign-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Distributor</label>
+              <select style={inputStyle} value={distributor} onChange={e => setDistributor(e.target.value)}>
+                {distributors.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Supplier</label>
+              <select style={inputStyle} value={supplier} onChange={e => setSupplier(e.target.value)}>
+                <option value="">Select supplier...</option>
+                {suppliers.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Items</label>
+              <SkuPicker supplierName={supplier} suppliers={suppliers} selectedGtins={selectedGtins} onChange={setSelectedGtins} />
+            </div>
+            <div>
+              <label style={labelStyle}>Launch Date</label>
+              <DatePicker value={launchDate} onChange={setLaunchDate} />
+            </div>
+            <div>
+              <label style={labelStyle}>Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}>
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Notes</label>
+              <textarea
+                value={formNotes}
+                onChange={e => setFormNotes(e.target.value)}
+                placeholder="Any additional context..."
+                rows={3}
+                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+              />
+            </div>
+          </form>
+        </div>
+        {/* Sticky footer buttons */}
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #27272a', display: 'flex', gap: 8, background: '#18181b', borderRadius: '0 0 12px 12px', flexShrink: 0 }}>
+          <button type="submit" form="create-campaign-form" disabled={saving} style={{
+            flex: 1, padding: '8px 14px', background: '#7c3aed', color: '#fff',
+            border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            opacity: saving ? 0.6 : 1,
+          }}>
+            {saving ? 'Saving...' : 'Create Campaign'}
+          </button>
+          <button type="button" onClick={onClose} style={{
+            padding: '8px 14px', background: '#27272a', color: '#a1a1aa',
+            border: '1px solid #3f3f46', borderRadius: 6, fontSize: 13, cursor: 'pointer',
+          }}>
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   )
