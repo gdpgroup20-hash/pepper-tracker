@@ -403,13 +403,58 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
   )
 }
 
+// ─── AddDistributorModal Component ───────────────────────────────────────────
+
+function AddDistributorModal({ onAdd, onClose }: { onAdd: (name: string) => void; onClose: () => void }) {
+  const [name, setName] = useState('')
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) return
+    onAdd(name.trim())
+  }
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div style={{ ...modalBox, maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Add Distributor</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Distributor Name</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Acme Foods Distribution"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button type="submit" style={{ flex: 1, padding: '8px 14px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              Add Distributor
+            </button>
+            <button type="button" onClick={onClose} style={{ padding: '8px 14px', background: '#27272a', color: '#a1a1aa', border: '1px solid #3f3f46', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ─── Matrix Component ────────────────────────────────────────────────────────
 
 function Matrix() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [distributors, setDistributors] = useState<string[]>([...DISTRIBUTORS].sort())
   const [showCreate, setShowCreate] = useState(false)
   const [showCreateSupplier, setShowCreateSupplier] = useState(false)
+  const [showAddDistributor, setShowAddDistributor] = useState(false)
   const [editSupplier, setEditSupplier] = useState<Supplier | null>(null)
   const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
@@ -607,7 +652,14 @@ function Matrix() {
                 background: '#18181b', borderBottom: '1px solid #27272a', borderRight: '1px solid #27272a',
                 padding: '8px 12px', fontSize: 12, fontWeight: 600, textAlign: 'left', color: '#a1a1aa',
               }}>
-                Distributor
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Distributor</span>
+                  <button
+                    onClick={() => setShowAddDistributor(true)}
+                    title="Add distributor"
+                    style={{ width: 20, height: 20, borderRadius: '50%', background: '#27272a', border: '1px solid #3f3f46', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: 1, flexShrink: 0 }}
+                  >+</button>
+                </div>
               </th>
               <th style={{
                 position: 'sticky', left: 200, zIndex: 30,
@@ -642,7 +694,7 @@ function Matrix() {
             </tr>
           </thead>
           <tbody>
-            {DISTRIBUTORS.map((dist, ri) => (
+            {distributors.map((dist, ri) => (
               <tr key={dist}>
                 <td style={{
                   position: 'sticky', left: 0, zIndex: 10, width: 200,
@@ -754,7 +806,7 @@ function Matrix() {
       </div>
 
       {/* Create Modal */}
-      {showCreate && <CreateModal onCreate={createCampaign} suppliers={suppliers} onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateModal onCreate={createCampaign} suppliers={suppliers} distributors={distributors} onClose={() => setShowCreate(false)} />}
 
       {/* Supplier Modals */}
       {showCreateSupplier && (
@@ -770,6 +822,17 @@ function Matrix() {
           onSave={async (data) => { await updateSupplier(editSupplier.id, data); setEditSupplier(null) }}
           onDelete={async (id) => { await deleteSupplier(id); setEditSupplier(null) }}
           onClose={() => setEditSupplier(null)}
+        />
+      )}
+
+      {/* Add Distributor Modal */}
+      {showAddDistributor && (
+        <AddDistributorModal
+          onAdd={(name) => {
+            setDistributors(prev => [...new Set([...prev, name])].sort())
+            setShowAddDistributor(false)
+          }}
+          onClose={() => setShowAddDistributor(false)}
         />
       )}
 
@@ -792,12 +855,13 @@ function Matrix() {
 
 // ─── Create Modal ────────────────────────────────────────────────────────────
 
-function CreateModal({ onCreate, suppliers, onClose }: {
+function CreateModal({ onCreate, suppliers, distributors, onClose }: {
   onCreate: (c: Omit<Campaign, 'id'>) => Promise<void>
   suppliers: Supplier[]
+  distributors: string[]
   onClose: () => void
 }) {
-  const [distributor, setDistributor] = useState(DISTRIBUTORS[0])
+  const [distributor, setDistributor] = useState(distributors[0] ?? '')
   const [supplier, setSupplier] = useState('')
   const [skusInput, setSkusInput] = useState('')
   const [launchDate, setLaunchDate] = useState(() => {
@@ -833,7 +897,7 @@ function CreateModal({ onCreate, suppliers, onClose }: {
           <div>
             <label style={labelStyle}>Distributor</label>
             <select style={inputStyle} value={distributor} onChange={e => setDistributor(e.target.value)}>
-              {DISTRIBUTORS.map(d => <option key={d} value={d}>{d}</option>)}
+              {distributors.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
           <div>
