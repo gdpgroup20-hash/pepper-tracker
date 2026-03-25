@@ -328,11 +328,11 @@ function SupplierModal({
           {skus.length > 0 && (
             <div style={{ background: "#1c1c1f", borderRadius: 6, border: "1px solid #27272a", overflow: "hidden", marginBottom: 8 }}>
               {/* Header row */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, padding: "6px 10px", borderBottom: "1px solid #27272a", fontSize: 10, color: "#52525b", fontWeight: 600, textTransform: "uppercase" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8, padding: "6px 10px", borderBottom: "1px solid #27272a", fontSize: 10, color: "#52525b", fontWeight: 600, textTransform: "uppercase" }}>
                 <span>Name</span><span>GTIN</span><span></span>
               </div>
               {skus.slice(0, 3).map((sku, idx) => (
-                <div key={sku.gtin} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, padding: "6px 10px", borderBottom: idx < 2 && idx < skus.length - 1 ? "1px solid #1a1a1c" : "none", fontSize: 12, alignItems: "center" }}>
+                <div key={sku.gtin} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8, padding: "6px 10px", borderBottom: idx < 2 && idx < skus.length - 1 ? "1px solid #1a1a1c" : "none", fontSize: 12, alignItems: "center" }}>
                   <span style={{ color: "#e4e4e7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sku.name}</span>
                   <span style={{ color: "#71717a", fontFamily: "monospace" }}>{sku.gtin}</span>
                   <button onClick={() => setSkus(prev => prev.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 14, padding: "0 2px" }} title="Remove">&times;</button>
@@ -396,12 +396,12 @@ function SupplierModal({
               </div>
               <div style={{ overflowY: "auto", flex: 1 }}>
                 {/* Header */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 8, padding: "6px 8px", fontSize: 10, color: "#52525b", fontWeight: 600, textTransform: "uppercase", position: "sticky", top: 0, background: "#18181b" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto auto", gap: 8, padding: "6px 8px", fontSize: 10, color: "#52525b", fontWeight: 600, textTransform: "uppercase", position: "sticky", top: 0, background: "#18181b" }}>
                   <span>Name</span><span>GTIN</span><span></span><span></span>
                 </div>
                 {skus.map((sku, idx) => (
                   editingSkuIdx === idx ? (
-                    <div key={sku.gtin + idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, padding: "4px 8px", alignItems: "center" }}>
+                    <div key={sku.gtin + idx} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 6, padding: "4px 8px", alignItems: "center" }}>
                       <input
                         defaultValue={sku.name}
                         id={`edit-name-${idx}`}
@@ -428,7 +428,7 @@ function SupplierModal({
                       </div>
                     </div>
                   ) : (
-                    <div key={sku.gtin + idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 8, padding: "6px 8px", borderBottom: "1px solid #1a1a1c", fontSize: 12, alignItems: "center" }}>
+                    <div key={sku.gtin + idx} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto auto", gap: 8, padding: "6px 8px", borderBottom: "1px solid #1a1a1c", fontSize: 12, alignItems: "center" }}>
                       <span style={{ color: "#e4e4e7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sku.name}</span>
                       <span style={{ color: "#71717a", fontFamily: "monospace" }}>{sku.gtin}</span>
                       <button onClick={() => setEditingSkuIdx(idx)} style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 12 }} title="Edit">&#9998;</button>
