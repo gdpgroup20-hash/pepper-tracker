@@ -585,6 +585,96 @@ function AddDistributorModal({ onAdd, onClose }: { onAdd: (name: string) => void
   )
 }
 
+// ─── SkuPicker Component ─────────────────────────────────────────────────────
+
+function SkuPicker({
+  supplierName,
+  suppliers,
+  selectedGtins,
+  onChange,
+}: {
+  supplierName: string
+  suppliers: Supplier[]
+  selectedGtins: string[]
+  onChange: (gtins: string[]) => void
+}) {
+  const [query, setQuery] = useState("")
+
+  const supplier = suppliers.find(s => s.name === supplierName)
+  const allItems: SkuItem[] = (supplier?.skus ?? []).map((s: any) =>
+    typeof s === "string" ? { gtin: s, name: s } : s
+  )
+
+  const filtered = query.trim()
+    ? allItems.filter(item =>
+        item.name.toLowerCase().includes(query.toLowerCase()) ||
+        item.gtin.toLowerCase().includes(query.toLowerCase())
+      )
+    : allItems
+
+  const selectedItems = allItems.filter(item => selectedGtins.includes(item.gtin))
+  const unselectedFiltered = filtered.filter(item => !selectedGtins.includes(item.gtin))
+
+  function toggle(gtin: string) {
+    if (selectedGtins.includes(gtin)) {
+      onChange(selectedGtins.filter(g => g !== gtin))
+    } else {
+      onChange([...selectedGtins, gtin])
+    }
+  }
+
+  if (!supplierName) return <div style={{ fontSize: 12, color: "#52525b" }}>Select a supplier first</div>
+  if (allItems.length === 0) return <div style={{ fontSize: 12, color: "#52525b" }}>No items uploaded for this supplier yet</div>
+
+  return (
+    <div>
+      {selectedItems.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+          {selectedItems.map(item => (
+            <div key={item.gtin} style={{
+              display: "flex", alignItems: "center", gap: 4,
+              padding: "3px 8px", borderRadius: 16,
+              background: "#2d1f5e", border: "1px solid #7c3aed",
+              fontSize: 11, color: "#c4b5fd",
+            }}>
+              <span style={{ maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
+              <button type="button" onClick={() => toggle(item.gtin)} style={{ background: "none", border: "none", color: "#a78bfa", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={`Search ${allItems.length} items...`}
+        style={{ width: "100%", background: "#27272a", border: "1px solid #3f3f46", borderRadius: query.trim() || unselectedFiltered.length > 0 ? "6px 6px 0 0" : "6px", color: "#fafafa", padding: "8px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" as const }}
+      />
+      {unselectedFiltered.length > 0 && (
+        <div style={{ maxHeight: 150, overflowY: "auto", border: "1px solid #3f3f46", borderTop: "none", borderRadius: "0 0 6px 6px", background: "#1c1c1f" }}>
+          {(query.trim() ? unselectedFiltered : unselectedFiltered.slice(0, 8)).map(item => (
+            <div key={item.gtin} onClick={() => toggle(item.gtin)}
+              style={{ display: "flex", justifyContent: "space-between", padding: "7px 10px", cursor: "pointer", fontSize: 12, borderBottom: "1px solid #27272a" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#27272a")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <span style={{ color: "#e4e4e7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "65%" }}>{item.name}</span>
+              <span style={{ color: "#52525b", fontFamily: "monospace", fontSize: 11, flexShrink: 0 }}>{item.gtin}</span>
+            </div>
+          ))}
+          {!query.trim() && unselectedFiltered.length > 8 && (
+            <div style={{ padding: "6px 10px", fontSize: 11, color: "#52525b", textAlign: "center" }}>Type to search all {unselectedFiltered.length} items</div>
+          )}
+        </div>
+      )}
+      {query.trim() && unselectedFiltered.length === 0 && (
+        <div style={{ padding: "6px 10px", fontSize: 12, color: "#52525b", background: "#1c1c1f", border: "1px solid #3f3f46", borderTop: "none", borderRadius: "0 0 6px 6px" }}>No matches</div>
+      )}
+      {selectedItems.length > 0 && <div style={{ fontSize: 11, color: "#52525b", marginTop: 4 }}>{selectedItems.length} item{selectedItems.length !== 1 ? "s" : ""} selected</div>}
+    </div>
+  )
+}
+
 // ─── Matrix Component ────────────────────────────────────────────────────────
 
 function Matrix() {
@@ -1016,19 +1106,21 @@ function Matrix() {
 
 // ─── Create Modal ────────────────────────────────────────────────────────────
 
-function CreateModal({ onCreate, suppliers, distributors, onClose }: {
+function CreateModal({ onCreate, suppliers, distributors, onClose, defaultDistributor, defaultMonth }: {
   onCreate: (c: Omit<Campaign, 'id'>) => Promise<void>
   suppliers: Supplier[]
   distributors: string[]
   onClose: () => void
+  defaultDistributor?: string
+  defaultMonth?: string
 }) {
-  const [distributor, setDistributor] = useState(distributors[0] ?? '')
+  const [distributor, setDistributor] = useState(defaultDistributor ?? distributors[0] ?? '')
   const [supplier, setSupplier] = useState('')
   const [skusInput, setSkusInput] = useState('')
-  const [launchDate, setLaunchDate] = useState(() => {
+  const [launchDate, setLaunchDate] = useState(defaultMonth ?? (() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  })
+  })())
   const [status, setStatus] = useState('Not contacted')
   const [formNotes, setFormNotes] = useState('')
   const [saving, setSaving] = useState(false)
