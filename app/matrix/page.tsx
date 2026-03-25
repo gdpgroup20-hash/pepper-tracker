@@ -447,9 +447,19 @@ function Matrix() {
   }, [])
 
   const createCampaign = useCallback(async (c: Omit<Campaign, 'id'>) => {
-    if (!supabase) return
-    const { data } = await supabase.from('campaigns').insert(c).select().single()
-    if (data) setCampaigns(prev => [...prev, data])
+    const localRow: Campaign = { ...c, id: crypto.randomUUID() }
+    if (!supabase) {
+      setCampaigns(prev => [...prev, localRow])
+      return
+    }
+    const { data, error } = await supabase.from('campaigns').insert(c).select().single()
+    if (error) {
+      console.error('Supabase campaign insert failed:', error)
+      // Still show it locally so the user sees something
+      setCampaigns(prev => [...prev, localRow])
+    } else if (data) {
+      setCampaigns(prev => [...prev, data])
+    }
   }, [])
 
   const updateCampaign = useCallback(async (id: string, patch: Partial<Campaign>) => {
