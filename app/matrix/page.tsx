@@ -667,9 +667,16 @@ function Matrix() {
                 background: '#1a1025', color: '#c4b5fd',
                 borderBottom: '1px solid #27272a',
                 borderRight: '1px solid #3b2d6e',
-                padding: '8px 10px', fontSize: 12, fontWeight: 600,
+                padding: '6px 10px', fontSize: 12, fontWeight: 600,
                 textAlign: 'center',
-              }}>Jenna&apos;s Queue</th>
+              }}>
+                <div>Jenna&apos;s Queue</div>
+                {campaigns.filter(c => c.launch_month === 'queue').length > 0 && (
+                  <div style={{ fontSize: 10, fontWeight: 400, color: '#7c3aed', marginTop: 2 }}>
+                    {campaigns.filter(c => c.launch_month === 'queue').length} campaign{campaigns.filter(c => c.launch_month === 'queue').length !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </th>
               {MONTH_COLS.map(col => {
                 const ck = colKey(col)
                 const isCurrent = ck === currentColKey
