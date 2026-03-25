@@ -25,7 +25,7 @@ const MONTH_COLS = [
   { label: "Dec", year: 2026, month: 12 },
 ]
 
-const STATUSES = ["Not contacted", "Contacted - pending decision", "Verbal yes", "Signed"]
+const STATUSES = ["Not contacted", "Contacted - pending decision", "Verbal yes", "Signed", "Rejected"]
 
 const DISTRIBUTORS = [
   'A.F. Wendling', "Aldo's Foodservice", 'Atlantic Distributors Inc', 'Atlantic Food Distributors',
@@ -60,8 +60,9 @@ interface Campaign {
   distributor: string
   supplier: string
   skus: string[]
-  launch_month: string // "YYYY-MM-DD" (full date, stored in launch_month column)
+  launch_month: string // "YYYY-MM-DD" or "queue"
   status: string
+  notes?: string
   created_at?: string
   updated_at?: string
 }
@@ -95,12 +96,14 @@ function colKey(col: { year: number; month: number }): string {
 }
 
 function launchDateToColKey(launchDate: string): string {
+  if (launchDate === 'queue') return 'queue'
   // handles both "YYYY-MM-01" and "YYYY-MM-DD"
   const d = new Date(launchDate + 'T00:00:00')
   return `${d.getFullYear()}-${d.getMonth() + 1}`
 }
 
 function isPast(launchDate: string): boolean {
+  if (launchDate === 'queue') return false
   const d = new Date(launchDate + 'T00:00:00')
   const now = new Date()
   const firstOfCurrent = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -108,6 +111,7 @@ function isPast(launchDate: string): boolean {
 }
 
 function tileLabel(campaign: Campaign): string {
+  if (campaign.launch_month === 'queue') return `${campaign.supplier} · Queue`
   const d = new Date(campaign.launch_month + 'T00:00:00')
   const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]
   const day = d.getDate()
@@ -115,6 +119,7 @@ function tileLabel(campaign: Campaign): string {
 }
 
 function launchDateLabel(launchDate: string): string {
+  if (launchDate === 'queue') return 'Queue'
   const d = new Date(launchDate + 'T00:00:00')
   const months = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December']
@@ -319,7 +324,8 @@ function SupplierModal({
 // ─── DatePicker Component ──────────────────────────────────────────────────
 
 function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { monthStr, day } = parseLaunchDate(value)
+  const isQueue = value === 'queue'
+  const { monthStr, day } = isQueue ? { monthStr: '', day: 1 } : parseLaunchDate(value)
 
   function handleMonthChange(newMonthStr: string) {
     onChange(buildLaunchDate(newMonthStr, day))
@@ -327,18 +333,31 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
 
   function handleDayChange(e: React.ChangeEvent<HTMLInputElement>) {
     const d = parseInt(e.target.value)
-    if (!isNaN(d)) onChange(buildLaunchDate(monthStr, d))
+    if (!isNaN(d) && monthStr) onChange(buildLaunchDate(monthStr, d))
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* Month grid */}
       <div style={{ border: '1px solid #3f3f46', borderRadius: 8, padding: 12, background: '#1c1c1f' }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: '#71717a', marginBottom: 4 }}>STAGING</div>
+          <button
+            type="button"
+            onClick={() => onChange('queue')}
+            style={{
+              padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
+              background: isQueue ? '#7c3aed' : '#27272a',
+              color: isQueue ? '#fff' : '#a1a1aa',
+              fontWeight: isQueue ? 600 : 400,
+            }}
+          >Queue</button>
+        </div>
         <div style={{ fontSize: 10, color: '#71717a', marginBottom: 4 }}>2025</div>
         <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
           {MONTH_COLS.filter(c => c.year === 2025).map(col => {
             const v = monthValue(col)
-            const selected = monthStr === v
+            const selected = !isQueue && monthStr === v
             return (
               <button key={v} type="button" onClick={() => handleMonthChange(v)} style={{
                 padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
@@ -353,7 +372,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {MONTH_COLS.filter(c => c.year === 2026).map(col => {
             const v = monthValue(col)
-            const selected = monthStr === v
+            const selected = !isQueue && monthStr === v
             return (
               <button key={v} type="button" onClick={() => handleMonthChange(v)} style={{
                 padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
@@ -366,18 +385,20 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
         </div>
       </div>
       {/* Day selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <label style={{ ...labelStyle, margin: 0, whiteSpace: 'nowrap' }}>Launch day</label>
-        <input
-          type="number"
-          min={1}
-          max={31}
-          value={day}
-          onChange={handleDayChange}
-          style={{ ...inputStyle, width: 80 }}
-        />
-        <span style={{ fontSize: 12, color: '#71717a' }}>of the month</span>
-      </div>
+      {!isQueue && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <label style={{ ...labelStyle, margin: 0, whiteSpace: 'nowrap' }}>Launch day</label>
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={day}
+            onChange={handleDayChange}
+            style={{ ...inputStyle, width: 80 }}
+          />
+          <span style={{ fontSize: 12, color: '#71717a' }}>of the month</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -467,7 +488,7 @@ function Matrix() {
 
   function handleDragStart(e: React.DragEvent, campaign: Campaign) {
     // Preserve the day when dragging to a new month
-    const { day } = parseLaunchDate(campaign.launch_month)
+    const day = campaign.launch_month === 'queue' ? 1 : parseLaunchDate(campaign.launch_month).day
     e.dataTransfer.setData('campaignId', campaign.id)
     e.dataTransfer.setData('campaignDay', String(day))
     setDragId(campaign.id)
@@ -559,6 +580,15 @@ function Matrix() {
               }}>
                 Distributor
               </th>
+              <th style={{
+                position: 'sticky', left: 200, zIndex: 30,
+                width: 140, minWidth: 140,
+                background: '#1a1025', color: '#c4b5fd',
+                borderBottom: '1px solid #27272a',
+                borderRight: '1px solid #3b2d6e',
+                padding: '8px 10px', fontSize: 12, fontWeight: 600,
+                textAlign: 'center',
+              }}>Jenna&apos;s Queue</th>
               {MONTH_COLS.map(col => {
                 const ck = colKey(col)
                 const isCurrent = ck === currentColKey
@@ -587,6 +617,53 @@ function Matrix() {
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
                   {dist}
+                </td>
+                <td
+                  style={{
+                    position: 'sticky', left: 200, zIndex: 9,
+                    width: 140, minWidth: 140,
+                    verticalAlign: 'top', padding: 4,
+                    background: ri % 2 === 0 ? '#0e0a1a' : '#100c1e',
+                    borderBottom: '1px solid #1a1a1c',
+                    borderRight: '1px solid #2d2250',
+                  }}
+                  onDragOver={handleDragOver}
+                  onDrop={e => {
+                    const id = e.dataTransfer.getData('campaignId')
+                    if (id) {
+                      updateCampaign(id, { distributor: dist, launch_month: 'queue' })
+                      setDragId(null)
+                    }
+                  }}
+                >
+                  {campaigns
+                    .filter(c => c.distributor === dist && c.launch_month === 'queue')
+                    .map(camp => {
+                      const colors = getSupplierColors(suppliers, camp.supplier)
+                      let tileBorder = `1px solid ${colors.border}33`
+                      if (camp.status === 'Signed') tileBorder = `2px solid ${colors.border}`
+                      else if (camp.status === 'Verbal yes') tileBorder = `1px solid ${colors.border}`
+                      return (
+                        <div
+                          key={camp.id}
+                          style={{
+                            background: colors.bg,
+                            border: tileBorder,
+                            borderRadius: 4, padding: '3px 6px', marginBottom: 2,
+                            fontSize: 11, color: colors.text,
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}
+                          onClick={() => setDetailCampaign(camp)}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, camp)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          {tileLabel(camp)}
+                        </div>
+                      )
+                    })}
                 </td>
                 {MONTH_COLS.map(col => {
                   const ck = colKey(col)
@@ -693,13 +770,14 @@ function CreateModal({ onCreate, suppliers, onClose }: {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   })
   const [status, setStatus] = useState('Not contacted')
+  const [formNotes, setFormNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
-    await onCreate({ distributor, supplier, skus, launch_month: launchDate, status })
+    await onCreate({ distributor, supplier, skus, launch_month: launchDate, status, notes: formNotes || undefined })
     setSaving(false)
     onClose()
   }
@@ -736,6 +814,16 @@ function CreateModal({ onCreate, suppliers, onClose }: {
               {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea
+              value={formNotes}
+              onChange={e => setFormNotes(e.target.value)}
+              placeholder="Any additional context..."
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             <button type="submit" disabled={saving} style={{
               flex: 1, padding: '8px 14px', background: '#7c3aed', color: '#fff',
@@ -770,13 +858,14 @@ function DetailModal({ campaign, suppliers, onUpdate, onDelete, onClose }: {
   const [status, setStatus] = useState(campaign.status)
   const [launchDate, setLaunchDate] = useState(campaign.launch_month)
   const [skusInput, setSkusInput] = useState((campaign.skus || []).join(', '))
+  const [notesInput, setNotesInput] = useState(campaign.notes ?? '')
   const [saving, setSaving] = useState(false)
   const colors = getSupplierColors(suppliers, campaign.supplier)
 
   async function handleSave() {
     setSaving(true)
     const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
-    await onUpdate(campaign.id, { status, launch_month: launchDate, skus })
+    await onUpdate(campaign.id, { status, launch_month: launchDate, skus, notes: notesInput || undefined })
     setSaving(false)
   }
 
@@ -788,7 +877,8 @@ function DetailModal({ campaign, suppliers, onUpdate, onDelete, onClose }: {
   const hasChanges =
     status !== campaign.status ||
     launchDate !== campaign.launch_month ||
-    skusInput !== (campaign.skus || []).join(', ')
+    skusInput !== (campaign.skus || []).join(', ') ||
+    notesInput !== (campaign.notes ?? '')
 
   return (
     <div style={modalOverlay} onClick={onClose}>
@@ -843,6 +933,18 @@ function DetailModal({ campaign, suppliers, onUpdate, onDelete, onClose }: {
             <select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}>
               {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+          </div>
+
+          {/* Notes — editable */}
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea
+              value={notesInput}
+              onChange={e => setNotesInput(e.target.value)}
+              placeholder="Any additional context..."
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+            />
           </div>
         </div>
 
