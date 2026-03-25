@@ -561,6 +561,11 @@ function Matrix() {
 
       {/* Supplier legend */}
       <div style={{ padding: '8px 24px', borderBottom: '1px solid #27272a', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={() => setShowCreateSupplier(true)}
+          title="Add supplier"
+          style={{ width: 26, height: 26, borderRadius: '50%', background: '#27272a', border: '1px solid #3f3f46', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1, flexShrink: 0 }}
+        >+</button>
         {[...suppliers].sort((a, b) => a.name.localeCompare(b.name)).map(s => (
           <div
             key={s.id}
@@ -580,10 +585,6 @@ function Matrix() {
             {s.name}
           </div>
         ))}
-        <button
-          onClick={() => setShowCreateSupplier(true)}
-          style={{ width: 26, height: 26, borderRadius: '50%', background: '#27272a', border: '1px solid #3f3f46', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1, flexShrink: 0 }}
-        >+</button>
       </div>
 
       {/* Scrollable matrix */}
@@ -793,11 +794,19 @@ function CreateModal({ onCreate, suppliers, onClose }: {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!supplier) { alert('Please select a supplier'); return }
+    if (!distributor) { alert('Please select a distributor'); return }
     setSaving(true)
-    const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
-    await onCreate({ distributor, supplier, skus, launch_month: launchDate, status, notes: formNotes || undefined })
-    setSaving(false)
-    onClose()
+    try {
+      const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
+      await onCreate({ distributor, supplier, skus, launch_month: launchDate, status, notes: formNotes || undefined })
+      onClose()
+    } catch (err) {
+      console.error('Create campaign failed:', err)
+      alert('Failed to save campaign. Check console for details.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
