@@ -597,6 +597,7 @@ function Matrix() {
   const [editSupplier, setEditSupplier] = useState<Supplier | null>(null)
   const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
+  const [createDefaults, setCreateDefaults] = useState<{ distributor: string; month: string } | null>(null)
 
   const now = new Date()
   const currentColKey = `${now.getFullYear()}-${now.getMonth() + 1}`
@@ -801,8 +802,8 @@ function Matrix() {
                 </div>
               </th>
               <th style={{
-                position: 'sticky', left: 200, zIndex: 30,
-                width: 140, minWidth: 140,
+                position: 'sticky', left: '200px', zIndex: 30,
+                width: 140, minWidth: 140, maxWidth: 140,
                 background: '#1a1025', color: '#c4b5fd',
                 borderBottom: '1px solid #27272a',
                 borderRight: '1px solid #3b2d6e',
@@ -843,7 +844,7 @@ function Matrix() {
             {distributors.map((dist, ri) => (
               <tr key={dist}>
                 <td style={{
-                  position: 'sticky', left: 0, zIndex: 10, width: 200,
+                  position: 'sticky', left: 0, zIndex: 10, width: 200, minWidth: 200, maxWidth: 200,
                   background: '#18181b', borderRight: '1px solid #27272a',
                   padding: '8px 12px', fontSize: 12, color: '#a1a1aa',
                   borderBottom: '1px solid #1a1a1c',
@@ -853,12 +854,19 @@ function Matrix() {
                 </td>
                 <td
                   style={{
-                    position: 'sticky', left: 200, zIndex: 9,
-                    width: 140, minWidth: 140,
+                    position: 'sticky', left: '200px', zIndex: 9,
+                    width: 140, minWidth: 140, maxWidth: 140,
                     verticalAlign: 'top', padding: 4,
                     background: ri % 2 === 0 ? '#0e0a1a' : '#100c1e',
                     borderBottom: '1px solid #1a1a1c',
                     borderRight: '1px solid #2d2250',
+                    cursor: 'cell',
+                  }}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setCreateDefaults({ distributor: dist, month: 'queue' })
+                      setShowCreate(true)
+                    }
                   }}
                   onDragOver={handleDragOver}
                   onDrop={e => {
@@ -907,11 +915,18 @@ function Matrix() {
                       key={ck}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, dist, col)}
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                          setCreateDefaults({ distributor: dist, month: monthValue(col) })
+                          setShowCreate(true)
+                        }
+                      }}
                       style={{
                         verticalAlign: 'top', padding: 4,
                         borderBottom: '1px solid #1a1a1c', borderRight: '1px solid #1a1a1c',
                         minHeight: 40, width: 120,
                         background: isCurrent ? '#0d0d12' : (ri % 2 === 0 ? '#0f0f10' : '#111113'),
+                        cursor: 'cell',
                       }}
                     >
                       {cellCampaigns.map(camp => {
@@ -952,7 +967,7 @@ function Matrix() {
       </div>
 
       {/* Create Modal */}
-      {showCreate && <CreateModal onCreate={createCampaign} suppliers={suppliers} distributors={distributors} onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateModal onCreate={createCampaign} suppliers={suppliers} distributors={distributors} defaultDistributor={createDefaults?.distributor} defaultMonth={createDefaults?.month} onClose={() => { setShowCreate(false); setCreateDefaults(null) }} />}
 
       {/* Supplier Modals */}
       {showCreateSupplier && (
