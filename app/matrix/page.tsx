@@ -551,20 +551,29 @@ function Matrix() {
       </div>
 
       {/* Supplier legend */}
-      <div style={{ padding: '8px 24px', borderBottom: '1px solid #27272a', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {suppliers.map(s => (
+      <div style={{ padding: '8px 24px', borderBottom: '1px solid #27272a', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {[...suppliers].sort((a, b) => a.name.localeCompare(b.name)).map(s => (
           <div
             key={s.id}
             onClick={() => setEditSupplier(s)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 12, background: '#1c1c1f', border: '1px solid #27272a' }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, cursor: 'pointer',
+              padding: '4px 10px', borderRadius: 20,
+              background: s.color_bg,
+              border: `1px solid ${s.color_border}`,
+              color: s.color_text,
+              fontWeight: 500,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           >
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color_border }} />
-            <span style={{ color: '#a1a1aa' }}>{s.name}</span>
+            {s.name}
           </div>
         ))}
         <button
           onClick={() => setShowCreateSupplier(true)}
-          style={{ width: 24, height: 24, borderRadius: '50%', background: '#27272a', border: '1px solid #3f3f46', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, lineHeight: 1 }}
+          style={{ width: 26, height: 26, borderRadius: '50%', background: '#27272a', border: '1px solid #3f3f46', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1, flexShrink: 0 }}
         >+</button>
       </div>
 
