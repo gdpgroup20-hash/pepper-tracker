@@ -27,18 +27,6 @@ const MONTH_COLS = [
 
 const STATUSES = ["Not contacted", "Contacted - pending decision", "Verbal yes", "Signed"]
 
-const SUPPLIERS = ["Pilgrim's", "Essity", "Aspire Bakeries", "Kettle Cuisine", "Kerry", "Branding Iron", "J.M. Smucker"]
-
-const SUPPLIER_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  "Pilgrim's":       { bg: '#1e3a5f', border: '#3b82f6', text: '#93c5fd' },
-  'Essity':          { bg: '#134e4a', border: '#14b8a6', text: '#99f6e4' },
-  'Aspire Bakeries': { bg: '#431407', border: '#f97316', text: '#fdba74' },
-  'Kettle Cuisine':  { bg: '#450a0a', border: '#ef4444', text: '#fca5a5' },
-  'Kerry':           { bg: '#2e1065', border: '#a855f7', text: '#d8b4fe' },
-  'Branding Iron':   { bg: '#451a03', border: '#f59e0b', text: '#fde68a' },
-  'J.M. Smucker':    { bg: '#052e16', border: '#22c55e', text: '#86efac' },
-}
-
 const DISTRIBUTORS = [
   'A.F. Wendling', "Aldo's Foodservice", 'Atlantic Distributors Inc', 'Atlantic Food Distributors',
   'Badger Foodservice', 'Bermuda General Agency', 'Brown Foodservice', 'Cable Meats',
@@ -57,6 +45,15 @@ const DISTRIBUTORS = [
 ]
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Supplier {
+  id: string
+  name: string
+  color_bg: string
+  color_border: string
+  color_text: string
+  skus: string[]
+}
 
 interface Campaign {
   id: string
@@ -146,6 +143,179 @@ function buildLaunchDate(monthStr: string, day: number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(clamped).padStart(2, '0')}`
 }
 
+function getSupplierColors(suppliers: Supplier[], name: string) {
+  const s = suppliers.find(s => s.name === name)
+  return s ? { bg: s.color_bg, border: s.color_border, text: s.color_text } : { bg: '#27272a', border: '#52525b', text: '#a1a1aa' }
+}
+
+// ─── Color Presets ────────────────────────────────────────────────────────────
+
+const COLOR_PRESETS = [
+  { bg: '#1e3a5f', border: '#3b82f6', text: '#93c5fd', label: 'Blue' },
+  { bg: '#134e4a', border: '#14b8a6', text: '#99f6e4', label: 'Teal' },
+  { bg: '#431407', border: '#f97316', text: '#fdba74', label: 'Orange' },
+  { bg: '#450a0a', border: '#ef4444', text: '#fca5a5', label: 'Red' },
+  { bg: '#2e1065', border: '#a855f7', text: '#d8b4fe', label: 'Purple' },
+  { bg: '#451a03', border: '#f59e0b', text: '#fde68a', label: 'Amber' },
+  { bg: '#052e16', border: '#22c55e', text: '#86efac', label: 'Green' },
+  { bg: '#1a1a2e', border: '#6366f1', text: '#a5b4fc', label: 'Indigo' },
+  { bg: '#2d1b4e', border: '#ec4899', text: '#f9a8d4', label: 'Pink' },
+  { bg: '#1c1917', border: '#a8a29e', text: '#d6d3d1', label: 'Stone' },
+]
+
+// ─── SupplierModal Component ──────────────────────────────────────────────────
+
+function SupplierModal({
+  supplier,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  supplier: Supplier | null
+  onSave: (data: Omit<Supplier, 'id'>) => void
+  onDelete?: (id: string) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState(supplier?.name ?? '')
+  const [selectedColor, setSelectedColor] = useState(
+    supplier ? COLOR_PRESETS.find(c => c.border === supplier.color_border) ?? COLOR_PRESETS[0] : COLOR_PRESETS[0]
+  )
+  const [skus, setSkus] = useState<string[]>(supplier?.skus ?? [])
+  const [skuInput, setSkuInput] = useState('')
+  const [fileName, setFileName] = useState('')
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      const rows = text.split(/\r?\n/).filter(Boolean)
+      const parsed = rows.flatMap(row => {
+        const cols = row.split(/[,\t]/)
+        return cols[0].trim()
+      }).filter(s => s.length > 0 && s !== 'SKU' && s !== 'sku')
+      setSkus(prev => [...new Set([...prev, ...parsed])])
+    }
+    reader.readAsText(file)
+  }
+
+  function handleSubmit() {
+    if (!name.trim()) return
+    onSave({
+      name: name.trim(),
+      color_bg: selectedColor.bg,
+      color_border: selectedColor.border,
+      color_text: selectedColor.text,
+      skus,
+    })
+  }
+
+  const isEdit = !!supplier
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div style={{ ...modalBox, maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{isEdit ? 'Edit Supplier' : 'New Supplier'}</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 18 }}>&times;</button>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Supplier Name</label>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="e.g. Acme Foods"
+            style={inputStyle}
+            autoFocus
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Color</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {COLOR_PRESETS.map(c => (
+              <button
+                key={c.label}
+                onClick={() => setSelectedColor(c)}
+                title={c.label}
+                style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  background: c.bg,
+                  border: selectedColor.border === c.border ? `2px solid ${c.border}` : '2px solid transparent',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  boxShadow: selectedColor.border === c.border ? `0 0 0 1px ${c.border}` : 'none',
+                }}
+              >
+                <div style={{ position: 'absolute', inset: 3, borderRadius: 3, background: c.border, opacity: 0.7 }} />
+              </button>
+            ))}
+          </div>
+          <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 12, background: selectedColor.bg, border: `1px solid ${selectedColor.border}`, fontSize: 12, color: selectedColor.text }}>
+            {name || 'Preview'}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>SKUs</label>
+          {skus.length > 0 && (
+            <div style={{ marginBottom: 8, fontSize: 11, color: '#71717a' }}>
+              {skus.length} SKU{skus.length !== 1 ? 's' : ''} loaded
+              {skus.slice(0, 3).map(s => (
+                <span key={s} style={{ marginLeft: 4, padding: '1px 6px', background: '#27272a', borderRadius: 4, color: '#a1a1aa' }}>{s}</span>
+              ))}
+              {skus.length > 3 && <span style={{ marginLeft: 4, color: '#52525b' }}>+{skus.length - 3} more</span>}
+            </div>
+          )}
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+            background: '#27272a', border: '1px dashed #3f3f46', borderRadius: 6,
+            cursor: 'pointer', fontSize: 13, color: '#a1a1aa',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M8 2v8M5 5l3-3 3 3M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" />
+            </svg>
+            {fileName || 'Upload CSV or Excel'}
+            <input type="file" accept=".csv,.xlsx,.xls,.txt" onChange={handleFileUpload} style={{ display: 'none' }} />
+          </label>
+          <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+            <input
+              value={skuInput}
+              onChange={e => setSkuInput(e.target.value)}
+              placeholder="Or type SKU and press Enter"
+              style={{ ...inputStyle, flex: 1 }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && skuInput.trim()) {
+                  setSkus(prev => [...new Set([...prev, skuInput.trim()])])
+                  setSkuInput('')
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 20 }}>
+          {isEdit && onDelete && (
+            <button
+              onClick={() => { if (confirm('Delete this supplier?')) onDelete(supplier!.id) }}
+              style={{ padding: '8px 14px', background: '#3b0a0a', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}
+            >Delete</button>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+            <button onClick={onClose} style={{ padding: '8px 14px', background: '#27272a', border: '1px solid #3f3f46', color: '#a1a1aa', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={handleSubmit} style={{ padding: '8px 14px', background: '#7c3aed', border: 'none', color: '#fff', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+              {isEdit ? 'Save Changes' : 'Create Supplier'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── DatePicker Component ──────────────────────────────────────────────────
 
 function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -216,7 +386,10 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
 
 function Matrix() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [showCreate, setShowCreate] = useState(false)
+  const [showCreateSupplier, setShowCreateSupplier] = useState(false)
+  const [editSupplier, setEditSupplier] = useState<Supplier | null>(null)
   const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
 
@@ -229,6 +402,9 @@ function Matrix() {
     if (!supabase) return
     supabase.from('campaigns').select('*').then(({ data }) => {
       if (data) setCampaigns(data)
+    })
+    supabase.from('suppliers').select('*').order('name').then(({ data }) => {
+      if (data) setSuppliers(data)
     })
 
     const channel = supabase.channel('campaigns-realtime')
@@ -265,6 +441,26 @@ function Matrix() {
     if (!supabase) return
     await supabase.from('campaigns').delete().eq('id', id)
     setCampaigns(prev => prev.filter(c => c.id !== id))
+  }, [])
+
+  // ─── Supplier CRUD ─────────────────────────────────────────────────────────
+
+  const createSupplier = useCallback(async (data: Omit<Supplier, 'id'>) => {
+    if (!supabase) return
+    const { data: row } = await supabase.from('suppliers').insert(data).select().single()
+    if (row) setSuppliers(prev => [...prev, row])
+  }, [])
+
+  const updateSupplier = useCallback(async (id: string, data: Partial<Supplier>) => {
+    if (!supabase) return
+    await supabase.from('suppliers').update(data).eq('id', id)
+    setSuppliers(prev => prev.map(s => s.id === id ? { ...s, ...data } : s))
+  }, [])
+
+  const deleteSupplier = useCallback(async (id: string) => {
+    if (!supabase) return
+    await supabase.from('suppliers').delete().eq('id', id)
+    setSuppliers(prev => prev.filter(s => s.id !== id))
   }, [])
 
   // ─── Drag & Drop ──────────────────────────────────────────────────────────
@@ -334,16 +530,21 @@ function Matrix() {
       </div>
 
       {/* Supplier legend */}
-      <div style={{ padding: '8px 24px', borderBottom: '1px solid #27272a', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {SUPPLIERS.map(s => {
-          const c = SUPPLIER_COLORS[s]
-          return (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: c.border }} />
-              <span style={{ color: '#a1a1aa' }}>{s}</span>
-            </div>
-          )
-        })}
+      <div style={{ padding: '8px 24px', borderBottom: '1px solid #27272a', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {suppliers.map(s => (
+          <div
+            key={s.id}
+            onClick={() => setEditSupplier(s)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 12, background: '#1c1c1f', border: '1px solid #27272a' }}
+          >
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color_border }} />
+            <span style={{ color: '#a1a1aa' }}>{s.name}</span>
+          </div>
+        ))}
+        <button
+          onClick={() => setShowCreateSupplier(true)}
+          style={{ width: 24, height: 24, borderRadius: '50%', background: '#27272a', border: '1px solid #3f3f46', color: '#a1a1aa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, lineHeight: 1 }}
+        >+</button>
       </div>
 
       {/* Scrollable matrix */}
@@ -404,7 +605,7 @@ function Matrix() {
                       }}
                     >
                       {cellCampaigns.map(camp => {
-                        const colors = SUPPLIER_COLORS[camp.supplier] || { bg: '#27272a', border: '#52525b', text: '#a1a1aa' }
+                        const colors = getSupplierColors(suppliers, camp.supplier)
                         const past = isPast(camp.launch_month)
                         let tileBorder = `1px solid ${colors.border}33`
                         if (camp.status === 'Signed') tileBorder = `2px solid ${colors.border}`
@@ -441,12 +642,30 @@ function Matrix() {
       </div>
 
       {/* Create Modal */}
-      {showCreate && <CreateModal onCreate={createCampaign} onClose={() => setShowCreate(false)} />}
+      {showCreate && <CreateModal onCreate={createCampaign} suppliers={suppliers} onClose={() => setShowCreate(false)} />}
+
+      {/* Supplier Modals */}
+      {showCreateSupplier && (
+        <SupplierModal
+          supplier={null}
+          onSave={async (data) => { await createSupplier(data); setShowCreateSupplier(false) }}
+          onClose={() => setShowCreateSupplier(false)}
+        />
+      )}
+      {editSupplier && (
+        <SupplierModal
+          supplier={editSupplier}
+          onSave={async (data) => { await updateSupplier(editSupplier.id, data); setEditSupplier(null) }}
+          onDelete={async (id) => { await deleteSupplier(id); setEditSupplier(null) }}
+          onClose={() => setEditSupplier(null)}
+        />
+      )}
 
       {/* Detail Modal */}
       {detailCampaign && (
         <DetailModal
           campaign={detailCampaign}
+          suppliers={suppliers}
           onUpdate={async (id, patch) => {
             await updateCampaign(id, patch)
             setDetailCampaign(prev => prev ? { ...prev, ...patch } : null)
@@ -461,12 +680,13 @@ function Matrix() {
 
 // ─── Create Modal ────────────────────────────────────────────────────────────
 
-function CreateModal({ onCreate, onClose }: {
+function CreateModal({ onCreate, suppliers, onClose }: {
   onCreate: (c: Omit<Campaign, 'id'>) => Promise<void>
+  suppliers: Supplier[]
   onClose: () => void
 }) {
   const [distributor, setDistributor] = useState(DISTRIBUTORS[0])
-  const [supplier, setSupplier] = useState(SUPPLIERS[0])
+  const [supplier, setSupplier] = useState('')
   const [skusInput, setSkusInput] = useState('')
   const [launchDate, setLaunchDate] = useState(() => {
     const now = new Date()
@@ -498,7 +718,8 @@ function CreateModal({ onCreate, onClose }: {
           <div>
             <label style={labelStyle}>Supplier</label>
             <select style={inputStyle} value={supplier} onChange={e => setSupplier(e.target.value)}>
-              {SUPPLIERS.map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="">Select supplier...</option>
+              {suppliers.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
             </select>
           </div>
           <div>
@@ -538,8 +759,9 @@ function CreateModal({ onCreate, onClose }: {
 
 // ─── Detail / Edit Modal ─────────────────────────────────────────────────────
 
-function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
+function DetailModal({ campaign, suppliers, onUpdate, onDelete, onClose }: {
   campaign: Campaign
+  suppliers: Supplier[]
   onUpdate: (id: string, patch: Partial<Campaign>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onClose: () => void
@@ -549,7 +771,7 @@ function DetailModal({ campaign, onUpdate, onDelete, onClose }: {
   const [launchDate, setLaunchDate] = useState(campaign.launch_month)
   const [skusInput, setSkusInput] = useState((campaign.skus || []).join(', '))
   const [saving, setSaving] = useState(false)
-  const colors = SUPPLIER_COLORS[campaign.supplier] || { bg: '#27272a', border: '#52525b', text: '#a1a1aa' }
+  const colors = getSupplierColors(suppliers, campaign.supplier)
 
   async function handleSave() {
     setSaving(true)
