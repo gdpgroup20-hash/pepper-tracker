@@ -612,8 +612,8 @@ function SkuPicker({
       )
     : allItems
 
-  const selectedItems = allItems.filter(item => selectedGtins.includes(item.gtin))
-  const unselectedFiltered = filtered.filter(item => !selectedGtins.includes(item.gtin))
+  const selectedItems = allItems.filter(item => selectedGtins.map(String).includes(String(item.gtin)))
+  const unselectedFiltered = filtered.filter(item => !selectedGtins.map(String).includes(String(item.gtin)))
 
   function toggle(gtin: string) {
     if (selectedGtins.includes(gtin)) {
