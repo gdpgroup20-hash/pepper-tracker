@@ -467,9 +467,18 @@ function Matrix() {
   // ─── Supplier CRUD ─────────────────────────────────────────────────────────
 
   const createSupplier = useCallback(async (data: Omit<Supplier, 'id'>) => {
-    if (!supabase) return
-    const { data: row } = await supabase.from('suppliers').insert(data).select().single()
-    if (row) setSuppliers(prev => [...prev, row])
+    const localRow: Supplier = { ...data, id: crypto.randomUUID() }
+    if (!supabase) {
+      setSuppliers(prev => [...prev, localRow])
+      return
+    }
+    const { data: row, error } = await supabase.from('suppliers').insert(data).select().single()
+    if (error) {
+      console.warn('Supabase supplier insert failed:', error.message)
+      setSuppliers(prev => [...prev, localRow])
+    } else if (row) {
+      setSuppliers(prev => [...prev, row])
+    }
   }, [])
 
   const updateSupplier = useCallback(async (id: string, data: Partial<Supplier>) => {
