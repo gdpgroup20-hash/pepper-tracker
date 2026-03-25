@@ -1116,7 +1116,7 @@ function CreateModal({ onCreate, suppliers, distributors, onClose, defaultDistri
 }) {
   const [distributor, setDistributor] = useState(defaultDistributor ?? distributors[0] ?? '')
   const [supplier, setSupplier] = useState('')
-  const [skusInput, setSkusInput] = useState('')
+  const [selectedGtins, setSelectedGtins] = useState<string[]>([])
   const [launchDate, setLaunchDate] = useState(defaultMonth ?? (() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
@@ -1125,14 +1125,15 @@ function CreateModal({ onCreate, suppliers, distributors, onClose, defaultDistri
   const [formNotes, setFormNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => { setSelectedGtins([]) }, [supplier])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!supplier) { alert('Please select a supplier'); return }
     if (!distributor) { alert('Please select a distributor'); return }
     setSaving(true)
     try {
-      const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
-      await onCreate({ distributor, supplier, skus, launch_month: launchDate, status, notes: formNotes || undefined })
+      await onCreate({ distributor, supplier, skus: selectedGtins, launch_month: launchDate, status, notes: formNotes || undefined })
       onClose()
     } catch (err) {
       console.error('Create campaign failed:', err)
@@ -1161,8 +1162,8 @@ function CreateModal({ onCreate, suppliers, distributors, onClose, defaultDistri
             </select>
           </div>
           <div>
-            <label style={labelStyle}>SKUs (comma-separated)</label>
-            <input style={inputStyle} value={skusInput} onChange={e => setSkusInput(e.target.value)} placeholder="e.g. SKU-001, SKU-002" />
+            <label style={labelStyle}>Items</label>
+            <SkuPicker supplierName={supplier} suppliers={suppliers} selectedGtins={selectedGtins} onChange={setSelectedGtins} />
           </div>
           <div>
             <label style={labelStyle}>Launch Date</label>
@@ -1217,15 +1218,14 @@ function DetailModal({ campaign, suppliers, onUpdate, onDelete, onClose }: {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [status, setStatus] = useState(campaign.status)
   const [launchDate, setLaunchDate] = useState(campaign.launch_month)
-  const [skusInput, setSkusInput] = useState((campaign.skus || []).join(', '))
+  const [selectedGtins, setSelectedGtins] = useState<string[]>(campaign.skus ?? [])
   const [notesInput, setNotesInput] = useState(campaign.notes ?? '')
   const [saving, setSaving] = useState(false)
   const colors = getSupplierColors(suppliers, campaign.supplier)
 
   async function handleSave() {
     setSaving(true)
-    const skus = skusInput.split(',').map(s => s.trim()).filter(Boolean)
-    await onUpdate(campaign.id, { status, launch_month: launchDate, skus, notes: notesInput || undefined })
+    await onUpdate(campaign.id, { status, launch_month: launchDate, skus: selectedGtins, notes: notesInput || undefined })
     setSaving(false)
   }
 
@@ -1237,7 +1237,7 @@ function DetailModal({ campaign, suppliers, onUpdate, onDelete, onClose }: {
   const hasChanges =
     status !== campaign.status ||
     launchDate !== campaign.launch_month ||
-    skusInput !== (campaign.skus || []).join(', ') ||
+    JSON.stringify(selectedGtins) !== JSON.stringify(campaign.skus ?? []) ||
     notesInput !== (campaign.notes ?? '')
 
   return (
@@ -1276,15 +1276,10 @@ function DetailModal({ campaign, suppliers, onUpdate, onDelete, onClose }: {
             <DatePicker value={launchDate} onChange={setLaunchDate} />
           </div>
 
-          {/* SKUs — editable */}
+          {/* Items — editable */}
           <div>
-            <label style={labelStyle}>SKUs (comma-separated)</label>
-            <input
-              style={inputStyle}
-              value={skusInput}
-              onChange={e => setSkusInput(e.target.value)}
-              placeholder="e.g. SKU-001, SKU-002"
-            />
+            <label style={labelStyle}>Items</label>
+            <SkuPicker supplierName={campaign.supplier} suppliers={suppliers} selectedGtins={selectedGtins} onChange={setSelectedGtins} />
           </div>
 
           {/* Status — editable */}
