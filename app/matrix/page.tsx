@@ -46,13 +46,19 @@ const DISTRIBUTORS = [
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+interface SkuItem {
+  gtin: string
+  name: string
+}
+
 interface Supplier {
   id: string
   name: string
   color_bg: string
   color_border: string
   color_text: string
-  skus: string[]
+  skus: SkuItem[]
+  created_at?: string
 }
 
 interface Campaign {
@@ -185,23 +191,54 @@ function SupplierModal({
   const [selectedColor, setSelectedColor] = useState(
     supplier ? COLOR_PRESETS.find(c => c.border === supplier.color_border) ?? COLOR_PRESETS[0] : COLOR_PRESETS[0]
   )
-  const [skus, setSkus] = useState<string[]>(supplier?.skus ?? [])
-  const [skuInput, setSkuInput] = useState('')
+  const [skus, setSkus] = useState<SkuItem[]>(
+    (supplier?.skus ?? []).map(s => typeof s === "string" ? { gtin: s, name: s } : s)
+  )
+  const [skuError, setSkuError] = useState("")
+  const [showAllSkus, setShowAllSkus] = useState(false)
+  const [editingSkuIdx, setEditingSkuIdx] = useState<number | null>(null)
+  const [newSkuName, setNewSkuName] = useState("")
+  const [newSkuGtin, setNewSkuGtin] = useState("")
   const [fileName, setFileName] = useState('')
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    setSkuError("")
     setFileName(file.name)
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
-      const rows = text.split(/\r?\n/).filter(Boolean)
-      const parsed = rows.flatMap(row => {
-        const cols = row.split(/[,\t]/)
-        return cols[0].trim()
-      }).filter(s => s.length > 0 && s !== 'SKU' && s !== 'sku')
-      setSkus(prev => [...new Set([...prev, ...parsed])])
+      const lines = text.split(/\r?\n/).filter(Boolean)
+      if (lines.length === 0) { setSkuError("File is empty"); return }
+
+      // Parse header
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""))
+      const nameIdx = headers.indexOf("name")
+      const gtinIdx = headers.indexOf("gtin")
+
+      if (nameIdx === -1 || gtinIdx === -1) {
+        setSkuError("CSV must have exactly 2 columns: \"Name\" and \"GTIN\"")
+        return
+      }
+
+      // Parse rows
+      const parsed: SkuItem[] = []
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",").map(c => c.trim().replace(/^"|"$/g, ""))
+        const itemName = cols[nameIdx]?.trim()
+        const gtin = cols[gtinIdx]?.trim()
+        if (itemName && gtin) parsed.push({ name: itemName, gtin })
+      }
+
+      if (parsed.length === 0) { setSkuError("No valid rows found"); return }
+
+      // Append, dedupe by GTIN (skip duplicates)
+      setSkus(prev => {
+        const existingGtins = new Set(prev.map(s => s.gtin))
+        const newItems = parsed.filter(s => !existingGtins.has(s.gtin))
+        return [...prev, ...newItems]
+      })
     }
     reader.readAsText(file)
   }
@@ -264,43 +301,145 @@ function SupplierModal({
           </div>
         </div>
 
+        {/* SKU Items */}
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>SKUs</label>
-          {skus.length > 0 && (
-            <div style={{ marginBottom: 8, fontSize: 11, color: '#71717a' }}>
-              {skus.length} SKU{skus.length !== 1 ? 's' : ''} loaded
-              {skus.slice(0, 3).map(s => (
-                <span key={s} style={{ marginLeft: 4, padding: '1px 6px', background: '#27272a', borderRadius: 4, color: '#a1a1aa' }}>{s}</span>
-              ))}
-              {skus.length > 3 && <span style={{ marginLeft: 4, color: '#52525b' }}>+{skus.length - 3} more</span>}
-            </div>
-          )}
+          <label style={labelStyle}>Items ({skus.length})</label>
+
+          {/* Upload button */}
           <label style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-            background: '#27272a', border: '1px dashed #3f3f46', borderRadius: 6,
-            cursor: 'pointer', fontSize: 13, color: '#a1a1aa',
+            display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+            background: "#27272a", border: "1px dashed #3f3f46", borderRadius: 6,
+            cursor: "pointer", fontSize: 13, color: "#a1a1aa", marginBottom: 8,
           }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M8 2v8M5 5l3-3 3 3M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" />
             </svg>
-            {fileName || 'Upload CSV or Excel'}
-            <input type="file" accept=".csv,.xlsx,.xls,.txt" onChange={handleFileUpload} style={{ display: 'none' }} />
+            {fileName || "Upload CSV (Name, GTIN columns required)"}
+            <input type="file" accept=".csv,.txt" onChange={handleFileUpload} style={{ display: "none" }} />
           </label>
-          <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+
+          {skuError && (
+            <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 8, padding: "6px 10px", background: "#3b0a0a", borderRadius: 6 }}>
+              {skuError}
+            </div>
+          )}
+
+          {/* Preview: first 3 items */}
+          {skus.length > 0 && (
+            <div style={{ background: "#1c1c1f", borderRadius: 6, border: "1px solid #27272a", overflow: "hidden", marginBottom: 8 }}>
+              {/* Header row */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, padding: "6px 10px", borderBottom: "1px solid #27272a", fontSize: 10, color: "#52525b", fontWeight: 600, textTransform: "uppercase" }}>
+                <span>Name</span><span>GTIN</span><span></span>
+              </div>
+              {skus.slice(0, 3).map((sku, idx) => (
+                <div key={sku.gtin} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, padding: "6px 10px", borderBottom: idx < 2 && idx < skus.length - 1 ? "1px solid #1a1a1c" : "none", fontSize: 12, alignItems: "center" }}>
+                  <span style={{ color: "#e4e4e7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sku.name}</span>
+                  <span style={{ color: "#71717a", fontFamily: "monospace" }}>{sku.gtin}</span>
+                  <button onClick={() => setSkus(prev => prev.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 14, padding: "0 2px" }} title="Remove">&times;</button>
+                </div>
+              ))}
+              {skus.length > 3 && (
+                <div style={{ padding: "6px 10px", fontSize: 11, color: "#7c3aed", cursor: "pointer", textAlign: "center" }} onClick={() => setShowAllSkus(true)}>
+                  View all {skus.length} items &rarr;
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Manual add row */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <input
-              value={skuInput}
-              onChange={e => setSkuInput(e.target.value)}
-              placeholder="Or type SKU and press Enter"
+              value={newSkuName}
+              onChange={e => setNewSkuName(e.target.value)}
+              placeholder="Name"
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <input
+              value={newSkuGtin}
+              onChange={e => setNewSkuGtin(e.target.value)}
+              placeholder="GTIN"
               style={{ ...inputStyle, flex: 1 }}
               onKeyDown={e => {
-                if (e.key === 'Enter' && skuInput.trim()) {
-                  setSkus(prev => [...new Set([...prev, skuInput.trim()])])
-                  setSkuInput('')
+                if (e.key === "Enter" && newSkuName.trim() && newSkuGtin.trim()) {
+                  const gtin = newSkuGtin.trim()
+                  if (!skus.some(s => s.gtin === gtin)) {
+                    setSkus(prev => [...prev, { name: newSkuName.trim(), gtin }])
+                  }
+                  setNewSkuName("")
+                  setNewSkuGtin("")
                 }
               }}
             />
+            <button
+              type="button"
+              onClick={() => {
+                if (!newSkuName.trim() || !newSkuGtin.trim()) return
+                const gtin = newSkuGtin.trim()
+                if (!skus.some(s => s.gtin === gtin)) {
+                  setSkus(prev => [...prev, { name: newSkuName.trim(), gtin }])
+                }
+                setNewSkuName("")
+                setNewSkuGtin("")
+              }}
+              style={{ padding: "8px 12px", background: "#27272a", border: "1px solid #3f3f46", borderRadius: 6, color: "#a1a1aa", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}
+            >+ Add</button>
           </div>
         </div>
+
+        {/* View All SKUs popout */}
+        {showAllSkus && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={() => setShowAllSkus(false)}>
+            <div style={{ background: "#18181b", border: "1px solid #27272a", borderRadius: 12, padding: 24, width: 500, maxHeight: "70vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>All Items ({skus.length})</h4>
+                <button onClick={() => setShowAllSkus(false)} style={{ background: "none", border: "none", color: "#71717a", cursor: "pointer", fontSize: 18 }}>&times;</button>
+              </div>
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                {/* Header */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 8, padding: "6px 8px", fontSize: 10, color: "#52525b", fontWeight: 600, textTransform: "uppercase", position: "sticky", top: 0, background: "#18181b" }}>
+                  <span>Name</span><span>GTIN</span><span></span><span></span>
+                </div>
+                {skus.map((sku, idx) => (
+                  editingSkuIdx === idx ? (
+                    <div key={sku.gtin + idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, padding: "4px 8px", alignItems: "center" }}>
+                      <input
+                        defaultValue={sku.name}
+                        id={`edit-name-${idx}`}
+                        style={{ ...inputStyle, fontSize: 12, padding: "4px 8px" }}
+                      />
+                      <input
+                        defaultValue={sku.gtin}
+                        id={`edit-gtin-${idx}`}
+                        style={{ ...inputStyle, fontSize: 12, padding: "4px 8px" }}
+                      />
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button
+                          onClick={() => {
+                            const editName = (document.getElementById(`edit-name-${idx}`) as HTMLInputElement)?.value.trim()
+                            const editGtin = (document.getElementById(`edit-gtin-${idx}`) as HTMLInputElement)?.value.trim()
+                            if (editName && editGtin) {
+                              setSkus(prev => prev.map((s, i) => i === idx ? { name: editName, gtin: editGtin } : s))
+                            }
+                            setEditingSkuIdx(null)
+                          }}
+                          style={{ padding: "3px 8px", background: "#7c3aed", border: "none", color: "#fff", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
+                        >Save</button>
+                        <button onClick={() => setEditingSkuIdx(null)} style={{ padding: "3px 8px", background: "#27272a", border: "1px solid #3f3f46", color: "#a1a1aa", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={sku.gtin + idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 8, padding: "6px 8px", borderBottom: "1px solid #1a1a1c", fontSize: 12, alignItems: "center" }}>
+                      <span style={{ color: "#e4e4e7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sku.name}</span>
+                      <span style={{ color: "#71717a", fontFamily: "monospace" }}>{sku.gtin}</span>
+                      <button onClick={() => setEditingSkuIdx(idx)} style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 12 }} title="Edit">&#9998;</button>
+                      <button onClick={() => setSkus(prev => prev.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", color: "#52525b", cursor: "pointer", fontSize: 14 }} title="Remove">&times;</button>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 20 }}>
           {isEdit && onDelete && (
