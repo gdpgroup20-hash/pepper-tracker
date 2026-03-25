@@ -192,7 +192,7 @@ function SupplierModal({
     supplier ? COLOR_PRESETS.find(c => c.border === supplier.color_border) ?? COLOR_PRESETS[0] : COLOR_PRESETS[0]
   )
   const [skus, setSkus] = useState<SkuItem[]>(
-    (supplier?.skus ?? []).map(s => typeof s === "string" ? { gtin: s, name: s } : s)
+    (supplier?.skus ?? []).map(s => typeof s === "string" ? (() => { try { return JSON.parse(s) } catch { return { gtin: s, name: s } } })() : s)
   )
   const [skuError, setSkuError] = useState("")
   const [showAllSkus, setShowAllSkus] = useState(false)
@@ -602,7 +602,7 @@ function SkuPicker({
 
   const supplier = suppliers.find(s => s.name === supplierName)
   const allItems: SkuItem[] = (supplier?.skus ?? []).map((s: any) =>
-    typeof s === "string" ? { gtin: s, name: s } : s
+    typeof s === "string" ? (() => { try { return JSON.parse(s) } catch { return { gtin: s, name: s } } })() : s
   )
 
   const filtered = query.trim()
