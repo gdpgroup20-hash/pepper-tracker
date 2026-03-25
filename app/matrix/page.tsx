@@ -1148,7 +1148,10 @@ function CreateModal({ onCreate, suppliers, distributors, onClose, defaultDistri
       <div style={modalBox} onClick={e => e.stopPropagation()}>
         {/* Scrollable content */}
         <div style={{ overflowY: 'auto', flex: 1, padding: 24, paddingBottom: 0 }}>
-          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>New Campaign</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>New Campaign</h3>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
           <form id="create-campaign-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <label style={labelStyle}>Distributor</label>
