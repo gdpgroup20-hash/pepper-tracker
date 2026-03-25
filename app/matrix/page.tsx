@@ -621,15 +621,21 @@ function Matrix() {
               {MONTH_COLS.map(col => {
                 const ck = colKey(col)
                 const isCurrent = ck === currentColKey
+                const count = campaigns.filter(c => c.launch_month === monthValue(col)).length
                 return (
                   <th key={ck} style={{
-                    width: 120, minWidth: 120, padding: 8, textAlign: 'center',
+                    width: 120, minWidth: 120, padding: '6px 8px', textAlign: 'center',
                     fontSize: 12, fontWeight: 600,
                     background: isCurrent ? '#1e1e22' : '#18181b',
                     color: isCurrent ? '#a78bfa' : '#a1a1aa',
                     borderBottom: '1px solid #27272a', borderRight: '1px solid #1a1a1c',
                   }}>
-                    {col.label} {col.year}
+                    <div>{col.label} {col.year}</div>
+                    {count > 0 && (
+                      <div style={{ fontSize: 10, fontWeight: 400, color: isCurrent ? '#7c3aed' : '#52525b', marginTop: 2 }}>
+                        {count} campaign{count !== 1 ? 's' : ''}
+                      </div>
+                    )}
                   </th>
                 )
               })}
